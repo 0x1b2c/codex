@@ -17,6 +17,30 @@ alias c := codex
 codex *args:
     cargo run --bin codex -- {args}
 
+# Build the release CLI and its code-mode host.
+build *args:
+    cargo build --release --locked --timings -p codex-cli -p codex-code-mode-host --bin codex --bin codex-code-mode-host {args}
+
+# Install both existing binaries without building; paths are relative to codex-rs.
+[unix]
+install-fork build-dir="target/release" prefix=(env("HOME") / ".local"):
+    #!/usr/bin/env sh
+    set -eu
+    bin_dir="$2/bin"
+    for name in codex codex-code-mode-host; do
+        if [ -d "$bin_dir/$name" ]; then
+            printf 'Cannot replace directory: %s\n' "$bin_dir/$name" >&2
+            exit 1
+        fi
+    done
+    mkdir -p "$bin_dir"
+    install_dir=$(mktemp -d "$bin_dir/.codex-install.XXXXXX")
+    trap 'rm -f "$install_dir/codex" "$install_dir/codex-code-mode-host"; rmdir "$install_dir"' 0
+    trap 'exit 1' HUP INT TERM
+    install -m 755 "$1/codex" "$1/codex-code-mode-host" "$install_dir/"
+    mv -f "$install_dir/codex" "$bin_dir/codex"
+    mv -f "$install_dir/codex-code-mode-host" "$bin_dir/codex-code-mode-host"
+
 # `codex exec`
 exec *args:
     cargo run --bin codex -- exec {args}

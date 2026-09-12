@@ -45,11 +45,13 @@ is omitted when its value is unknown.
 
 ### Build and developer experience
 
-**`local-build`** adds `just build` to build and install both the CLI and its
-required code-mode host, including the prebuilt V8 setup. Building only the CLI
-can otherwise leave the companion executable missing.
+**`local-build`** adds `just build` and
+`just install-fork`. The build recipe builds the complete CLI and its code-mode
+host together, without requiring an official Codex installation or a separate
+build script. Installation is a separate step; see
+[Building and running](#building-and-running).
 
-*Current range: `rust-v0.162.1..283cdd1476`.*
+*Topic: `local-build`. Range: `fork-base..local-build`.*
 
 ## Patch-stack conventions
 
@@ -123,13 +125,57 @@ From the repository root:
 
 ```sh
 just build
+just install-fork
 ```
 
-The default is a development build; use `just build --release` for a release
-build. This command also installs the binaries under `~/.local/lib/codex-local/`
-and creates `~/.local/bin/codex-local` and
-`~/.local/bin/codex-code-mode-host` links. Run `codex-local` to use the local CLI.
-It does not replace the official `codex` command.
+`just build` enables Cargo's HTML build timing report. Cargo prints the report's
+path in the build log.
+
+Local builds use Cargo's `--locked` flag: they use the tracked lock file without
+rewriting it. If a manifest change requires a lock-file update, update and review
+the lock file explicitly before building again.
+
+The recipe runs Cargo directly with `--release`, building only the `codex` and
+`codex-code-mode-host` binaries and their dependencies, not every workspace tool.
+The CLI includes the TUI and the usual `resume`, `exec`, and other subcommands.
+Both binaries come from this checkout; no installed official CLI or host is
+needed. V8's own build script handles its precompiled library download.
+
+Additional arguments are forwarded to Cargo. The default uses the native target;
+for example, `just build --target aarch64-apple-darwin` selects that explicit
+target and can reuse the target layout used by the former build script.
+
+`just build` only builds; it does not install or change existing commands.
+By default, the two executables are `codex-rs/target/release/codex` and
+`codex-rs/target/release/codex-code-mode-host`. `CARGO_TARGET_DIR`, Cargo
+configuration, or `--target` can change this location; an explicit target adds
+its triple before `release/`. Keep both executables together so the CLI can find
+its companion.
+
+On macOS and Linux, `just install-fork` installs the existing binaries into
+`~/.local/bin`; it does not build them. Both sources are copied successfully
+before either command is replaced. Existing file symlinks are replaced with
+regular executable files, leaving their targets untouched; directory destinations
+are rejected. The upstream `just install` recipe only prepares development
+dependencies and is unchanged.
+
+The first optional argument selects the build output directory, relative to
+`codex-rs/` unless absolute. For an explicit target:
+
+```sh
+just build --target aarch64-apple-darwin
+just install-fork target/aarch64-apple-darwin/release
+```
+
+If `CARGO_TARGET_DIR` or Cargo configuration changes the output location, pass
+that directory explicitly. A second optional argument selects the installation
+prefix, for example `just install-fork /tmp/codex-target/release /tmp/codex-prefix`
+installs both commands into `/tmp/codex-prefix/bin`.
+
+The recipe does not change `PATH`. Put `~/.local/bin` before other Codex
+installations in `PATH`, then run `codex`. The command has no fork-specific
+suffix. Windows builds produce the corresponding `.exe` files; copy both into
+the same directory on `PATH`.
 
 ## License and attribution
 
