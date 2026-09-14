@@ -5,6 +5,7 @@ use crate::chatwidget::ThreadUsageOutcome;
 use crate::chatwidget::rate_limits::NUDGE_MODEL_SLUG;
 use crate::chatwidget::rate_limits::get_limits_duration;
 use crate::chatwidget::realtime::tests::activate_voice_for_thread;
+use chrono::TimeZone;
 use codex_app_server_protocol::SpendControlLimitSnapshot;
 use codex_app_server_protocol::ThreadUsage;
 use pretty_assertions::assert_eq;
@@ -54,6 +55,21 @@ fn take_workspace_headline_request_id(
         Ok(AppEvent::RefreshStatusLineWorkspaceHeadline { request_id }) => request_id,
         event => panic!("expected workspace headline refresh, got {event:?}"),
     }
+}
+
+#[tokio::test]
+async fn status_line_cache_expiry_tracks_prompt_submission_time() {
+    let (mut chat, _rx, _ops) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.local_settings.tui.status_line = Some(vec!["cache-expiry".to_string()]);
+    chat.refresh_status_line();
+    assert_eq!(status_line_text(&chat), None);
+
+    let submitted_at = Local
+        .with_ymd_and_hms(2026, 1, 15, 12, 0, 0)
+        .single()
+        .expect("unambiguous local time");
+    chat.note_cache_request_submitted(submitted_at);
+    insta::assert_snapshot!(status_line_text(&chat).unwrap_or_default(), @"Cache ~12:30");
 }
 
 /// Receiving a token usage update without usage clears the context indicator.

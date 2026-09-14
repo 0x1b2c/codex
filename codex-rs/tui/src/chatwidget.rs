@@ -745,6 +745,8 @@ pub(crate) struct ChatWidget {
     terminal_title_animation_origin: Instant,
     // The foreground loop refreshes the title at this deadline without drawing a frame.
     pub(crate) terminal_title_next_refresh: Option<Instant>,
+    // Estimated local expiry time for the latest submitted prompt.
+    cache_expiry: Option<chrono::DateTime<Local>>,
     // Cached project-root display name keyed by cwd for status/title rendering.
     status_line_project_root_name_cache: Option<CachedProjectRootName>,
     // Cached git branch name for the status line (None if unknown).

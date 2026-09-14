@@ -16,6 +16,7 @@
 //! - Permissions profile
 //! - Approval mode
 //! - Context usage (remaining %, used %, window size)
+//! - Estimated prompt-cache expiry time
 //! - Usage limits (primary, secondary)
 //! - Session info (thread title, thread ID, tokens used)
 //! - Application version
@@ -107,6 +108,9 @@ pub(crate) enum StatusLineItem {
     #[strum(to_string = "context-used", serialize = "context-usage")]
     ContextUsed,
 
+    /// Local estimate of when the latest submitted prompt's cache expires.
+    CacheExpiry,
+
     /// Remaining usage on the primary rate limit.
     FiveHourLimit,
 
@@ -186,6 +190,9 @@ impl StatusLineItem {
             StatusLineItem::ContextUsed => {
                 "Percentage of context window used (omitted when unknown)"
             }
+            StatusLineItem::CacheExpiry => {
+                "Estimated cache expiry time after prompt submission (omitted when unknown)"
+            }
             StatusLineItem::FiveHourLimit => {
                 "Remaining usage on the primary usage limit (omitted when unavailable)"
             }
@@ -238,6 +245,7 @@ impl StatusLineItem {
             StatusLineItem::ApprovalMode => StatusSurfacePreviewItem::ApprovalMode,
             StatusLineItem::ContextRemaining => StatusSurfacePreviewItem::ContextRemaining,
             StatusLineItem::ContextUsed => StatusSurfacePreviewItem::ContextUsed,
+            StatusLineItem::CacheExpiry => StatusSurfacePreviewItem::CacheExpiry,
             StatusLineItem::FiveHourLimit => StatusSurfacePreviewItem::FiveHourLimit,
             StatusLineItem::WeeklyLimit => StatusSurfacePreviewItem::WeeklyLimit,
             StatusLineItem::CodexVersion => StatusSurfacePreviewItem::CodexVersion,

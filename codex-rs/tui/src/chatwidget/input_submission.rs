@@ -5,6 +5,11 @@ use codex_app_server_protocol::ImageReference;
 use codex_utils_path_uri::LegacyAppPathString;
 
 impl ChatWidget {
+    pub(super) fn note_cache_request_submitted(&mut self, at: chrono::DateTime<Local>) {
+        self.cache_expiry = Some(at + chrono::TimeDelta::minutes(30));
+        self.refresh_status_line();
+    }
+
     pub(crate) fn set_task_mentions_enabled(&mut self, enabled: bool) {
         self.bottom_pane.set_task_mentions_enabled(enabled);
     }
@@ -493,6 +498,9 @@ impl ChatWidget {
         }
         if source == UserMessageSource::Prompt {
             self.bottom_pane.clear_pending_questions();
+        }
+        if render_in_history {
+            self.note_cache_request_submitted(Local::now());
         }
         self.dismiss_backend_banner_for_new_turn();
         self.note_realtime_typed_input(&submitted_message.text);
