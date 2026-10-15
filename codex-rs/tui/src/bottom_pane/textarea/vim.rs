@@ -161,7 +161,7 @@ impl TextArea {
         })
     }
 
-    fn expand_word_around(&self, inner: Range<usize>) -> Range<usize> {
+    pub(super) fn expand_word_around(&self, inner: Range<usize>) -> Range<usize> {
         let following = self.following_whitespace_end(inner.end);
         if following > inner.end {
             return inner.start..following;
@@ -169,7 +169,7 @@ impl TextArea {
         self.preceding_whitespace_start(inner.start)..inner.end
     }
 
-    fn following_whitespace_end(&self, start: usize) -> usize {
+    pub(super) fn following_whitespace_end(&self, start: usize) -> usize {
         let mut end = start;
         for (offset, ch) in self.text[start..].char_indices() {
             if !ch.is_whitespace() {
@@ -180,7 +180,7 @@ impl TextArea {
         end
     }
 
-    fn preceding_whitespace_start(&self, end: usize) -> usize {
+    pub(super) fn preceding_whitespace_start(&self, end: usize) -> usize {
         let mut start = end;
         for (idx, ch) in self.text[..end].char_indices().rev() {
             if !ch.is_whitespace() {
@@ -197,8 +197,18 @@ impl TextArea {
         open: char,
         close: char,
     ) -> Option<Range<usize>> {
+        self.paired_text_object_range_count(scope, open, close, 1)
+    }
+
+    pub(super) fn paired_text_object_range_count(
+        &self,
+        scope: VimTextObjectScope,
+        open: char,
+        close: char,
+        count: usize,
+    ) -> Option<Range<usize>> {
         let mut stack: Vec<usize> = Vec::new();
-        let mut best: Option<Range<usize>> = None;
+        let mut containing = 0;
         for (idx, ch) in self.text.char_indices() {
             if self.is_inside_element(idx) {
                 continue;
@@ -211,21 +221,19 @@ impl TextArea {
                 };
                 let close_end = idx + ch.len_utf8();
                 if open_idx <= self.cursor_pos && self.cursor_pos <= idx {
+                    containing += 1;
+                    if containing != count {
+                        continue;
+                    }
                     let candidate = match scope {
                         VimTextObjectScope::Inner => open_idx + open.len_utf8()..idx,
                         VimTextObjectScope::Around => open_idx..close_end,
                     };
-                    if candidate.start <= candidate.end
-                        && best
-                            .as_ref()
-                            .is_none_or(|current| candidate.len() < current.len())
-                    {
-                        best = Some(candidate);
-                    }
+                    return Some(candidate);
                 }
             }
         }
-        best
+        None
     }
 
     fn quoted_text_object_range(

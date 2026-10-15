@@ -868,3 +868,23 @@ fn counted_operator_search_defers_snapshot_until_accepting_the_query() {
     keys(&mut composer, "u");
     assert_eq!(composer.current_text(), "one two one two one two end");
 }
+
+#[test]
+fn counted_text_object_changes_share_one_undo_with_the_whole_insertion() {
+    let mut composer = vim_composer("one two three four five six");
+    keys(&mut composer, "c3i");
+    assert!(composer.vim_history.pending.is_none());
+    keys(&mut composer, "wXY");
+    escape(&mut composer);
+    assert_eq!(composer.current_text(), "XY three four five six");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "w.");
+    assert_eq!(composer.current_text(), "XY XY five six");
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "XY three four five six");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "XY XY five six");
+    keys(&mut composer, "u2y2iw");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+}

@@ -36,6 +36,17 @@ impl TextArea {
             .take()
             .unwrap_or(1)
             .saturating_mul(self.vim_count.take().unwrap_or(1));
+        if self.vim_operator_keymap.cancel.is_pressed(event) {
+            return true;
+        }
+        if let Some(scope) = self.vim_text_object_scope_for_event(event) {
+            self.vim_count = counted.then_some(count);
+            self.vim_pending = VimPending::TextObject {
+                operator: op,
+                scope,
+            };
+            return true;
+        }
         let motion = self.vim_motion_for_event(event);
         let line = op == VimOperator::Delete
             && self.vim_operator_keymap.delete_line.is_pressed(event)
@@ -68,7 +79,7 @@ impl TextArea {
                         last: keys.motion_jump_bottom.is_pressed(event),
                     }
                 } else {
-                    // Counted text objects are introduced separately. Never execute a single object.
+                    // Unknown input cancels the operator and consumes its count.
                     return true;
                 }
             };
@@ -112,6 +123,13 @@ impl TextArea {
         let origin = self.cursor_pos;
         let preferred = self.preferred_col;
         let (range, linewise) = match target {
+            VimEditTarget::TextObject { scope, object } => {
+                let Some(range) = self.vim_counted_text_object_range(object, scope, count) else {
+                    return false;
+                };
+                self.apply_vim_operator_to_range(op, range);
+                return true;
+            }
             VimEditTarget::Search(query) => {
                 return self.apply_vim_search_count(&query, Some(op), count);
             }
@@ -299,8 +317,12 @@ impl TextArea {
                         .motion_till_backward
                         .is_pressed(event)
             }
-            VimPending::TextObject { operator, .. }
-            | VimPending::Find {
+            VimPending::TextObject { operator, .. } => {
+                operator != VimOperator::Yank
+                    && !self.vim_text_object_keymap.cancel.is_pressed(event)
+                    && self.vim_text_object_for_event(event).is_some()
+            }
+            VimPending::Find {
                 operator: Some(operator),
                 ..
             } => operator != VimOperator::Yank,

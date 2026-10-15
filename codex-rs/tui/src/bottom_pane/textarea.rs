@@ -65,6 +65,7 @@ mod vim_horizontal;
 mod vim_horizontal_tests;
 mod vim_operator_counts;
 mod vim_search;
+mod vim_text_object_counts;
 mod vim_words;
 mod wrapping;
 
@@ -1052,6 +1053,18 @@ impl TextArea {
         scope: VimTextObjectScope,
         event: KeyEvent,
     ) -> bool {
+        if let Some(count) = self.vim_count.take() {
+            if let Some(object) = self.vim_text_object_for_event(event)
+                && !self.vim_text_object_keymap.cancel.is_pressed(event)
+            {
+                self.start_vim_counted_operator(
+                    op,
+                    VimEditTarget::TextObject { scope, object },
+                    count,
+                );
+            }
+            return true;
+        }
         if self.vim_text_object_keymap.cancel.is_pressed(event) {
             return true;
         }
