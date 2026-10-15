@@ -118,6 +118,8 @@ fn count_prefix_is_pending_and_cancels_on_escape_invalid_keys_and_mode_changes()
     assert_eq!(t.text(), "abcdef");
     assert!(!t.is_vim_operator_pending());
     keys(&mut t, "3d");
+    assert!(t.is_vim_operator_pending());
+    t.input(escape);
     assert!(!t.is_vim_operator_pending());
 }
 

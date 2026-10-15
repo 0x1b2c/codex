@@ -3,7 +3,6 @@
 
 use super::TextArea;
 use super::TextAreaState;
-use super::VimAction;
 use super::VimEditTarget;
 use super::VimOperator;
 use super::VimPending;
@@ -132,11 +131,13 @@ impl TextArea {
                 (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                     self.vim_pending = VimPending::None;
                     self.vim_count = None;
+                    self.vim_operator_count = None;
                     return true;
                 }
                 (KeyCode::Backspace, KeyModifiers::NONE) if input.editor.is_empty() => {
                     self.vim_pending = VimPending::None;
                     self.vim_count = None;
+                    self.vim_operator_count = None;
                     return true;
                 }
                 (KeyCode::Enter, KeyModifiers::NONE) => {}
@@ -174,16 +175,28 @@ impl TextArea {
             }
             query
         };
-        let count = self.vim_count.take().unwrap_or(1);
+        let count = self
+            .vim_count
+            .take()
+            .unwrap_or(1)
+            .saturating_mul(self.vim_operator_count.take().unwrap_or(1));
         match std::mem::replace(&mut self.vim_pending, VimPending::None) {
             VimPending::Operator(VimOperator::Delete) => {
-                self.start_vim_edit(VimAction::Delete(VimEditTarget::Search(query)));
+                self.start_vim_counted_operator(
+                    VimOperator::Delete,
+                    VimEditTarget::Search(query),
+                    count,
+                );
             }
             VimPending::Operator(VimOperator::Change) => {
-                self.start_vim_edit(VimAction::Change(VimEditTarget::Search(query)));
+                self.start_vim_counted_operator(
+                    VimOperator::Change,
+                    VimEditTarget::Search(query),
+                    count,
+                );
             }
             VimPending::Operator(VimOperator::Yank) => {
-                self.apply_vim_search(&query, Some(VimOperator::Yank));
+                self.apply_vim_search_count(&query, Some(VimOperator::Yank), count);
             }
             _ => {
                 self.apply_vim_search_count(&query, /*operator*/ None, count);
@@ -200,7 +213,7 @@ impl TextArea {
         self.apply_vim_search_count(query, operator, 1)
     }
 
-    fn apply_vim_search_count(
+    pub(super) fn apply_vim_search_count(
         &mut self,
         query: &SearchQuery,
         operator: Option<VimOperator>,

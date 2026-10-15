@@ -112,11 +112,13 @@ impl ChatComposer {
         if !self.draft.textarea.is_vim_enabled()
             || self.vim_history.pending.is_some()
             || self.draft.textarea.is_vim_operator_pending()
+                && !self.draft.textarea.vim_pending_key_may_edit(event)
         {
             return;
         }
 
         if self.draft.textarea.is_vim_normal_mode()
+            && !self.draft.textarea.is_vim_operator_pending()
             && (self.draft.textarea.wants_vim_count_key(event)
                 || self.vim_normal_keymap.move_left.is_pressed(event)
                 || self.vim_normal_keymap.move_right.is_pressed(event)
@@ -143,6 +145,14 @@ impl ChatComposer {
                 || self.draft.textarea.wants_vim_search_key(event)
                 || self.vim_normal_keymap.yank_line.is_pressed(event)
                 || self.vim_normal_keymap.start_yank_operator.is_pressed(event)
+                || self
+                    .vim_normal_keymap
+                    .start_delete_operator
+                    .is_pressed(event)
+                || self
+                    .vim_normal_keymap
+                    .start_change_operator
+                    .is_pressed(event)
                 || self.vim_normal_keymap.cancel_operator.is_pressed(event))
         {
             return;

@@ -1,6 +1,7 @@
 //! Numeric prefixes belong to Normal-mode commands, including pending character searches.
 
 use super::TextArea;
+use super::VimOperator;
 use super::VimPending;
 use super::vim_words::VimWordKind;
 use crate::key_hint::KeyBindingListExt;
@@ -84,6 +85,18 @@ impl TextArea {
             return false;
         };
         let keys = &self.vim_normal_keymap;
+        let operator = [
+            (&keys.start_delete_operator, VimOperator::Delete),
+            (&keys.start_change_operator, VimOperator::Change),
+            (&keys.start_yank_operator, VimOperator::Yank),
+        ]
+        .into_iter()
+        .find_map(|(keys, op)| keys.is_pressed(event).then_some(op));
+        if let Some(operator) = operator {
+            self.vim_operator_count = Some(count);
+            self.vim_pending = VimPending::Operator(operator);
+            return true;
+        }
         if keys.find_forward.is_pressed(event)
             || keys.find_backward.is_pressed(event)
             || keys.till_forward.is_pressed(event)
@@ -183,7 +196,7 @@ impl TextArea {
         self.set_cursor(self.first_non_blank_of_current_line());
     }
 
-    fn move_vim_counted_word(
+    pub(super) fn move_vim_counted_word(
         &mut self,
         kind: VimWordKind,
         destination: WordDestination,
@@ -224,13 +237,13 @@ impl TextArea {
 }
 
 #[derive(Clone, Copy)]
-enum WordDestination {
+pub(super) enum WordDestination {
     Start,
     Previous,
     End,
 }
 
-fn count_digit(event: KeyEvent) -> Option<usize> {
+pub(super) fn count_digit(event: KeyEvent) -> Option<usize> {
     match (event.code, event.modifiers) {
         (KeyCode::Char(ch @ '0'..='9'), KeyModifiers::NONE) => Some((ch as u8 - b'0') as usize),
         _ => None,

@@ -48,6 +48,10 @@ pub(super) enum VimInsertPosition {
 
 #[derive(Clone, Debug)]
 pub(super) enum VimEditTarget {
+    Counted {
+        target: Box<VimEditTarget>,
+        count: usize,
+    },
     Character,
     Line,
     LineEnd,
@@ -364,6 +368,11 @@ impl TextArea {
                     VimOperator::Change
                 };
                 match target {
+                    VimEditTarget::Counted { target, count } => {
+                        if !self.apply_vim_counted_target(operator, *target, count) {
+                            return false;
+                        }
+                    }
                     VimEditTarget::Character => {
                         if self.cursor_pos < self.end_of_current_line() {
                             self.delete_forward_kill(/*n*/ 1);
@@ -559,15 +568,15 @@ impl TextArea {
                 if let Some(ch) = vim_command_char(event) {
                     match operator {
                         Some(VimOperator::Delete) => {
-                            self.start_vim_edit(VimAction::Delete(VimEditTarget::Find {
-                                motion,
-                                target: ch,
+                            self.start_vim_edit(VimAction::Delete(VimEditTarget::Counted {
+                                target: Box::new(VimEditTarget::Find { motion, target: ch }),
+                                count,
                             }));
                         }
                         Some(VimOperator::Change) => {
-                            self.start_vim_edit(VimAction::Change(VimEditTarget::Find {
-                                motion,
-                                target: ch,
+                            self.start_vim_edit(VimAction::Change(VimEditTarget::Counted {
+                                target: Box::new(VimEditTarget::Find { motion, target: ch }),
+                                count,
                             }));
                         }
                         Some(VimOperator::Yank) | None => {
@@ -593,7 +602,7 @@ impl TextArea {
         self.find_vim_character_count(motion, operator, target, 1)
     }
 
-    fn find_vim_character_count(
+    pub(super) fn find_vim_character_count(
         &mut self,
         motion: VimFindMotion,
         operator: Option<VimOperator>,

@@ -63,6 +63,7 @@ mod vim_horizontal;
 #[cfg(test)]
 #[path = "textarea/vim_horizontal_tests.rs"]
 mod vim_horizontal_tests;
+mod vim_operator_counts;
 mod vim_search;
 mod vim_words;
 mod wrapping;
@@ -166,6 +167,7 @@ pub(crate) struct TextArea {
     vim_mode: VimMode,
     vim_pending: VimPending,
     vim_count: Option<usize>,
+    vim_operator_count: Option<usize>,
     vim_commands: VimCommandState,
     vim_search: vim_search::VimSearch,
     vim_search_enabled: bool,
@@ -237,6 +239,7 @@ impl TextArea {
             vim_mode: VimMode::Insert,
             vim_pending: VimPending::None,
             vim_count: None,
+            vim_operator_count: None,
             vim_commands: VimCommandState::default(),
             vim_search: vim_search::VimSearch::default(),
             vim_search_enabled: false,
@@ -315,6 +318,7 @@ impl TextArea {
         self.preferred_col = None;
         self.vim_pending = VimPending::None;
         self.vim_count = None;
+        self.vim_operator_count = None;
         self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
     }
@@ -329,6 +333,7 @@ impl TextArea {
         self.vim_enabled = enabled;
         self.vim_pending = VimPending::None;
         self.vim_count = None;
+        self.vim_operator_count = None;
         self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
         self.vim_mode = if enabled {
@@ -397,6 +402,7 @@ impl TextArea {
             self.vim_mode = VimMode::Insert;
             self.vim_pending = VimPending::None;
             self.vim_count = None;
+            self.vim_operator_count = None;
             self.clear_vim_replace_recovery();
             self.cancel_vim_search();
             if self.vim_commands.pending_change.is_empty() && !self.vim_commands.replaying {
@@ -416,6 +422,7 @@ impl TextArea {
             self.vim_mode = VimMode::Normal;
             self.vim_pending = VimPending::None;
             self.vim_count = None;
+            self.vim_operator_count = None;
             self.cancel_vim_search();
             self.preferred_col = None;
             self.clear_vim_replace_recovery();
@@ -993,6 +1000,9 @@ impl TextArea {
     }
 
     fn handle_vim_operator(&mut self, op: VimOperator, event: KeyEvent) -> bool {
+        if self.handle_vim_counted_operator(op, event) {
+            return true;
+        }
         if op == VimOperator::Delete && self.vim_operator_keymap.delete_line.is_pressed(event) {
             self.start_vim_edit(VimAction::Delete(VimEditTarget::Line));
             return true;

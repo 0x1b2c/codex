@@ -831,3 +831,40 @@ fn chinese_word_changes_and_big_word_replay_remain_undoable() {
         assert_eq!(composer.current_text(), "X X");
     }
 }
+
+#[test]
+fn counted_operators_form_one_edit_and_prefixes_and_yanks_preserve_redo() {
+    let mut composer = vim_composer("one two three four five six seven");
+    keys(&mut composer, "2d");
+    assert!(composer.vim_history.pending.is_none());
+    keys(&mut composer, "2w");
+    assert_eq!(composer.current_text(), "five six seven");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "one two three four five six seven");
+    keys(&mut composer, "2y2w");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "five six seven");
+    keys(&mut composer, "u2cwX");
+    escape(&mut composer);
+    assert_eq!(composer.current_text(), "X three four five six seven");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "w.");
+    assert_eq!(composer.current_text(), "X X five six seven");
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "X three four five six seven");
+}
+
+#[test]
+fn counted_operator_search_defers_snapshot_until_accepting_the_query() {
+    let mut composer = vim_composer("one two one two one two end");
+    keys(&mut composer, "2d/two");
+    assert!(composer.vim_history.pending.is_none());
+    keys(&mut composer, "\n");
+    assert_eq!(composer.current_text(), "two one two end");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "one two one two one two end");
+}
