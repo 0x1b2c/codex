@@ -122,7 +122,22 @@ impl TextArea {
     ) -> bool {
         let origin = self.cursor_pos;
         let preferred = self.preferred_col;
+        let clamp_delete = matches!(
+            target,
+            VimEditTarget::Character | VimEditTarget::Motion(VimMotion::LineEnd)
+        );
         let (range, linewise) = match target {
+            VimEditTarget::Character => {
+                let (range, _) = self.vim_counted_character_range(count);
+                if range.is_empty() {
+                    if op == VimOperator::Change {
+                        self.vim_mode = VimMode::Insert;
+                        return true;
+                    }
+                    return false;
+                }
+                (range, false)
+            }
             VimEditTarget::TextObject { scope, object } => {
                 let Some(range) = self.vim_counted_text_object_range(object, scope, count) else {
                     return false;
@@ -249,6 +264,9 @@ impl TextArea {
         }
         if !linewise {
             self.apply_vim_operator_to_range(op, range);
+            if clamp_delete && op == VimOperator::Delete {
+                self.set_cursor(self.cursor_pos.min(self.vim_line_end_cursor()));
+            }
         } else {
             match op {
                 VimOperator::Delete => self.kill_line_range(range),
@@ -292,7 +310,8 @@ impl TextArea {
                 );
         }
         match self.vim_pending {
-            VimPending::Operator(VimOperator::Yank) | VimPending::None => false,
+            VimPending::Operator(VimOperator::Yank) => false,
+            VimPending::None => self.vim_counted_direct_key_may_edit(event),
             VimPending::Operator(_) => {
                 !self.vim_operator_keymap.cancel.is_pressed(event)
                     && !(count_digit(event)

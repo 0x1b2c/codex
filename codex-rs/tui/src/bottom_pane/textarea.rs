@@ -59,6 +59,7 @@ mod single_line;
 mod vim;
 mod vim_commands;
 mod vim_counts;
+mod vim_direct_counts;
 mod vim_horizontal;
 #[cfg(test)]
 #[path = "textarea/vim_horizontal_tests.rs"]
@@ -969,7 +970,7 @@ impl TextArea {
             return;
         }
         if self.vim_normal_keymap.paste_after.is_pressed(event) {
-            self.start_vim_edit(VimAction::PasteAfter);
+            self.start_vim_edit(VimAction::PasteAfter { count: 1 });
             return;
         }
         if self
@@ -1498,41 +1499,6 @@ impl TextArea {
     fn store_kill_buffer(&mut self, text: String, kind: KillBufferKind) {
         self.kill_buffer = text;
         self.kill_buffer_kind = kind;
-    }
-
-    fn paste_after_cursor(&mut self) {
-        if self.kill_buffer.is_empty() {
-            return;
-        }
-        if self.kill_buffer_kind == KillBufferKind::Linewise && !self.single_line {
-            self.paste_line_after_current_line();
-            return;
-        }
-        let insert_at = self.next_atomic_boundary(self.cursor_pos);
-        self.set_cursor(insert_at);
-        let text = self.kill_buffer.clone();
-        self.insert_str(&text);
-    }
-
-    fn paste_line_after_current_line(&mut self) {
-        let eol = self.end_of_current_line();
-        let insert_at = if eol < self.text.len() { eol + 1 } else { eol };
-        let cursor = if eol < self.text.len() {
-            insert_at
-        } else {
-            insert_at + 1
-        };
-        let text = if eol < self.text.len() {
-            if self.kill_buffer.ends_with('\n') {
-                self.kill_buffer.clone()
-            } else {
-                format!("{}\n", self.kill_buffer)
-            }
-        } else {
-            format!("\n{}", self.kill_buffer.trim_end_matches('\n'))
-        };
-        self.insert_str_at(insert_at, &text);
-        self.set_cursor(cursor.min(self.text.len()));
     }
 
     fn yank_current_line(&mut self) {

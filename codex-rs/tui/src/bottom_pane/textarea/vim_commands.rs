@@ -77,8 +77,8 @@ pub(super) enum VimAction {
     RestoreReplacedCharacter,
     Delete(VimEditTarget),
     Change(VimEditTarget),
-    Replace(char),
-    PasteAfter,
+    Replace { ch: char, count: usize },
+    PasteAfter { count: usize },
     DeleteBackward,
     DeleteForward,
     DeleteBackwardWord,
@@ -276,7 +276,7 @@ impl TextArea {
             return false;
         }
         self.vim_commands.changed =
-            self.text.len() != prior_len || matches!(action, VimAction::Replace(_));
+            self.text.len() != prior_len || matches!(action, VimAction::Replace { .. });
         if self.vim_mode == VimMode::Normal {
             self.finish_pending_vim_change();
         }
@@ -423,19 +423,8 @@ impl TextArea {
                 }
                 return self.text.len() != prior_len;
             }
-            VimAction::Replace(ch) => {
-                if self.cursor_pos >= self.end_of_current_line() {
-                    return false;
-                }
-                let start = self.cursor_pos;
-                let end = self.next_atomic_boundary(start);
-                self.replace_range(start..end, &ch.to_string());
-                self.set_cursor(start + usize::from(ch == '\n'));
-            }
-            VimAction::PasteAfter => {
-                self.paste_after_cursor();
-                return self.text.len() != prior_len;
-            }
+            VimAction::Replace { ch, count } => return self.replace_vim_characters(ch, count),
+            VimAction::PasteAfter { count } => return self.paste_vim_after(count),
             VimAction::DeleteBackward => self.delete_backward(/*n*/ 1),
             VimAction::DeleteForward => self.delete_forward(/*n*/ 1),
             VimAction::DeleteBackwardWord => self.delete_backward_word(),
@@ -561,7 +550,7 @@ impl TextArea {
                 if let Some(ch) = vim_command_char(event)
                     && !(self.single_line && matches!(ch, '\r' | '\n'))
                 {
-                    self.start_vim_edit(VimAction::Replace(ch));
+                    self.start_vim_edit(VimAction::Replace { ch, count });
                 }
             }
             VimPending::Find { motion, operator } => {

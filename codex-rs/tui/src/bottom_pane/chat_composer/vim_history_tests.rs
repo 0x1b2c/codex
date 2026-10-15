@@ -870,6 +870,38 @@ fn counted_operator_search_defers_snapshot_until_accepting_the_query() {
 }
 
 #[test]
+fn counted_direct_edits_and_insertions_are_one_undo_and_replay_the_original_count() {
+    for (command, edited) in [
+        ("3x", "defgh"),
+        ("3r7", "777defgh"),
+        ("3sXY", "XYdefgh"),
+        ("1CXY", "XY"),
+    ] {
+        let mut composer = vim_composer("abcdefgh");
+        keys(&mut composer, command);
+        escape(&mut composer);
+        assert_eq!(composer.current_text(), edited, "{command}");
+        assert_eq!(composer.vim_history.undo.len(), 1, "{command}");
+        keys(&mut composer, "u2Y2l");
+        assert_eq!(composer.current_text(), "abcdefgh");
+        assert!(composer.vim_history.pending.is_none());
+        assert_eq!(composer.vim_history.redo.len(), 1);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+    }
+    let mut composer = vim_composer("abcdefgh");
+    keys(&mut composer, "3sXY");
+    escape(&mut composer);
+    keys(&mut composer, "l.");
+    assert_eq!(composer.current_text(), "XYXYgh");
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "XYdefgh");
+    keys(&mut composer, "3r7u99rX");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+}
+
+#[test]
 fn counted_text_object_changes_share_one_undo_with_the_whole_insertion() {
     let mut composer = vim_composer("one two three four five six");
     keys(&mut composer, "c3i");

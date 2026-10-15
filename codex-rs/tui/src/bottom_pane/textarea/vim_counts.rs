@@ -84,6 +84,9 @@ impl TextArea {
         let Some(count) = self.vim_count.take() else {
             return false;
         };
+        if self.handle_vim_counted_direct_edit(event, count) {
+            return true;
+        }
         let keys = &self.vim_normal_keymap;
         let operator = [
             (&keys.start_delete_operator, VimOperator::Delete),
@@ -172,8 +175,8 @@ impl TextArea {
             }
             return true;
         }
-        // Mode transitions and line-start retain their existing behavior. Editing counts
-        // are introduced separately; never silently turn a counted edit into a single edit.
+        // Mode transitions and line-start retain their existing behavior. Unsupported counts
+        // are consumed rather than silently turning a counted edit into a single edit.
         let uncounted = keys.move_line_start.is_pressed(event)
             || keys.enter_insert.is_pressed(event)
             || keys.append_after_cursor.is_pressed(event)

@@ -115,7 +115,7 @@ fn count_prefix_is_pending_and_cancels_on_escape_invalid_keys_and_mode_changes()
     keys(&mut t, "l");
     assert_eq!(t.cursor(), 2);
     keys(&mut t, "3x");
-    assert_eq!(t.text(), "abcdef");
+    assert_eq!(t.text(), "abf");
     assert!(!t.is_vim_operator_pending());
     keys(&mut t, "3d");
     assert!(t.is_vim_operator_pending());
