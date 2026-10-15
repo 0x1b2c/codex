@@ -92,7 +92,8 @@
 //! Canceled history previews restore history and active commands; accepting another prompt resets them.
 //! Normal-mode Ctrl+R redoes an edit, or does nothing when redo is empty. Insert-mode Ctrl+R
 //! keeps prompt-history search; explicitly configured keybindings retain precedence.
-//! Vim queries stay draft-local.
+//! Vim queries stay draft-local. Visual character selections own their navigation and Escape;
+//! selection-only input preserves undo/redo and consumes submission keys.
 //!
 //! Slash commands are staged for local history instead of being recorded immediately. Command
 //! recall is a two-phase handoff: stage the submitted slash text here, then record it after
@@ -1949,6 +1950,9 @@ impl ChatComposer {
     }
 
     fn handle_key_event_inner(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
+        if self.draft.textarea.is_vim_visual_mode() {
+            return self.handle_input_basic(key_event);
+        }
         if self.history_search.is_none()
             && !self.popups.active()
             && self.draft.textarea.wants_vim_search_key(key_event)

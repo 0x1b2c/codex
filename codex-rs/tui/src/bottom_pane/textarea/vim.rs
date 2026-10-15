@@ -8,6 +8,8 @@ use std::ops::Range;
 pub(super) enum VimMode {
     /// Normal mode routes printable keys to movement, operators, and mode transitions.
     Normal,
+    /// Visual mode extends an inclusive character selection with Normal-mode motions.
+    Visual,
     /// Insert mode routes input through the regular editor keymap until Escape is pressed.
     Insert,
     /// Replace mode overwrites existing graphemes through the regular editor keymap.

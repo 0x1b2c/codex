@@ -68,6 +68,7 @@ mod vim_operator_counts;
 mod vim_repeat_find;
 mod vim_search;
 mod vim_text_object_counts;
+mod vim_visual;
 mod vim_words;
 mod wrapping;
 
@@ -168,6 +169,7 @@ pub(crate) struct TextArea {
     kill_buffer_kind: KillBufferKind,
     vim_enabled: bool,
     vim_mode: VimMode,
+    vim_visual_anchor: Option<usize>,
     vim_pending: VimPending,
     vim_count: Option<usize>,
     vim_operator_count: Option<usize>,
@@ -240,6 +242,7 @@ impl TextArea {
             kill_buffer_kind: KillBufferKind::Characterwise,
             vim_enabled: false,
             vim_mode: VimMode::Insert,
+            vim_visual_anchor: None,
             vim_pending: VimPending::None,
             vim_count: None,
             vim_operator_count: None,
@@ -319,6 +322,7 @@ impl TextArea {
         self.cursor_pos = self.clamp_pos_to_nearest_boundary(self.cursor_pos);
         self.wrap_cache.replace(None);
         self.preferred_col = None;
+        self.clear_vim_visual();
         self.vim_pending = VimPending::None;
         self.vim_count = None;
         self.vim_operator_count = None;
@@ -334,6 +338,7 @@ impl TextArea {
     /// an old `d` or `y` command.
     pub(crate) fn set_vim_enabled(&mut self, enabled: bool) {
         self.vim_enabled = enabled;
+        self.clear_vim_visual();
         self.vim_pending = VimPending::None;
         self.vim_count = None;
         self.vim_operator_count = None;
@@ -402,6 +407,7 @@ impl TextArea {
     /// current keymap state.
     pub(crate) fn enter_vim_insert_mode(&mut self) {
         if self.vim_enabled {
+            self.clear_vim_visual();
             self.vim_mode = VimMode::Insert;
             self.vim_pending = VimPending::None;
             self.vim_count = None;
@@ -422,6 +428,7 @@ impl TextArea {
     /// stale visual target.
     pub(crate) fn enter_vim_normal_mode(&mut self) {
         if self.vim_enabled {
+            self.clear_vim_visual();
             self.vim_mode = VimMode::Normal;
             self.vim_pending = VimPending::None;
             self.vim_count = None;
@@ -448,12 +455,14 @@ impl TextArea {
 
     /// Return whether Escape should be intercepted before composer-level routing.
     ///
-    /// In Vim insert mode or while a command is pending, Escape is an editing
+    /// In Vim insert/Visual mode or while a command is pending, Escape is an editing
     /// transition rather than a popup cancel/backtrack or turn-interrupt shortcut.
     pub(crate) fn should_handle_vim_insert_escape(&self, event: KeyEvent) -> bool {
         self.vim_enabled
-            && (matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
-                || self.is_vim_operator_pending())
+            && (matches!(
+                self.vim_mode,
+                VimMode::Insert | VimMode::Replace | VimMode::Visual
+            ) || self.is_vim_operator_pending())
             && event.code == KeyCode::Esc
             && event.modifiers == KeyModifiers::NONE
             && matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)
@@ -471,6 +480,7 @@ impl TextArea {
         }
         Some(match self.vim_mode {
             VimMode::Normal => "Normal",
+            VimMode::Visual => "Visual",
             VimMode::Insert => "Insert",
             VimMode::Replace => "Replace",
         })
@@ -483,6 +493,7 @@ impl TextArea {
         }
         Some(match self.vim_mode {
             VimMode::Normal => "Vim: Normal".magenta(),
+            VimMode::Visual => "Vim: Visual".yellow(),
             VimMode::Insert => "Vim: Insert".green(),
             VimMode::Replace => "Vim: Replace".cyan(),
         })
@@ -666,7 +677,7 @@ impl TextArea {
         }
         self.last_click = None;
         if self.vim_enabled {
-            if self.is_vim_normal_mode() {
+            if self.is_vim_normal_mode() || self.is_vim_visual_mode() {
                 self.mouse_selection = None;
             }
             self.handle_vim_input(event);
@@ -805,6 +816,7 @@ impl TextArea {
         match self.vim_mode {
             VimMode::Insert | VimMode::Replace => self.handle_vim_insert(event),
             VimMode::Normal => self.handle_vim_normal(event),
+            VimMode::Visual => self.handle_vim_visual(event),
         }
         if matches!(prior_mode, VimMode::Insert | VimMode::Replace)
             && self.vim_mode == VimMode::Normal
@@ -860,6 +872,10 @@ impl TextArea {
             return;
         }
 
+        if self.vim_normal_keymap.enter_visual.is_pressed(event) {
+            self.enter_vim_visual_mode();
+            return;
+        }
         if self.vim_normal_keymap.enter_insert.is_pressed(event) {
             self.start_vim_edit(VimAction::Insert(VimInsertPosition::Cursor));
             return;
@@ -2344,6 +2360,10 @@ impl TextArea {
         highlights: &[(Range<usize>, Style)],
     ) {
         let element_style = base_style.fg(Color::Cyan);
+        let visual_selection = self.vim_visual_range();
+        let selection = visual_selection
+            .clone()
+            .or_else(|| self.mouse_selection_range());
         for (row, idx) in range.clone().enumerate() {
             let r = &lines[idx];
             let y = area.y + row as u16;
@@ -2360,7 +2380,6 @@ impl TextArea {
             );
 
             // Selection takes precedence over elements and search highlights.
-            let selection = self.mouse_selection_range();
             let overlays = self
                 .elements
                 .iter()
@@ -2390,6 +2409,17 @@ impl TextArea {
                     usize::from(area.width.saturating_sub(x_off)),
                     style,
                 );
+            }
+            // A selected newline remains visible, including on otherwise empty Visual rows.
+            if visual_selection
+                .as_ref()
+                .is_some_and(|range| range.contains(&line_range.end))
+                && self.text.as_bytes().get(line_range.end) == Some(&b'\n')
+            {
+                let column = display_width(visible);
+                if column < usize::from(area.width) {
+                    buf[(area.x + column as u16, y)].set_style(base_style.reversed());
+                }
             }
         }
         if let Some(wrap_cache) = self.wrap_cache.borrow().as_ref() {

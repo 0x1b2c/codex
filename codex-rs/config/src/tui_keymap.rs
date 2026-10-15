@@ -271,6 +271,8 @@ pub struct TuiVimNormalKeymap {
     pub open_line_below: Option<KeybindingsSpec>,
     /// Open a new line above and enter insert mode (`O`).
     pub open_line_above: Option<KeybindingsSpec>,
+    /// Enter characterwise Visual mode (`v`).
+    pub enter_visual: Option<KeybindingsSpec>,
     /// Enter replace mode and overwrite characters under the cursor (`R`).
     pub enter_replace_mode: Option<KeybindingsSpec>,
     /// Move cursor left (`h`).

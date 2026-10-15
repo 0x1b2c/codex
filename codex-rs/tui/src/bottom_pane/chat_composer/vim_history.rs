@@ -110,6 +110,7 @@ impl ChatComposer {
     /// Snapshot only keys that can begin or complete a Vim edit transaction.
     pub(super) fn begin_vim_edit(&mut self, event: KeyEvent) {
         if !self.draft.textarea.is_vim_enabled()
+            || self.draft.textarea.is_vim_visual_mode()
             || self.vim_history.pending.is_some()
             || self.draft.textarea.is_vim_operator_pending()
                 && !self.draft.textarea.vim_pending_key_may_edit(event)
@@ -120,6 +121,7 @@ impl ChatComposer {
         if self.draft.textarea.is_vim_normal_mode()
             && !self.draft.textarea.is_vim_operator_pending()
             && (self.draft.textarea.wants_vim_count_key(event)
+                || self.vim_normal_keymap.enter_visual.is_pressed(event)
                 || self.vim_normal_keymap.move_left.is_pressed(event)
                 || self.vim_normal_keymap.move_right.is_pressed(event)
                 || self.vim_normal_keymap.move_up.is_pressed(event)

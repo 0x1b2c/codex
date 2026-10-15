@@ -49,6 +49,25 @@ fn ctrl_r(composer: &mut ChatComposer) {
 }
 
 #[test]
+fn visual_navigation_cancellation_and_unsupported_edits_preserve_redo() {
+    let mut composer = vim_composer("one two\nthree");
+    keys(&mut composer, "xu");
+    keys(&mut composer, "v2wjkdcypPu");
+    ctrl_r(&mut composer);
+    let (result, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    assert!(matches!(result, InputResult::None));
+    assert_eq!(composer.current_text(), "one two\nthree");
+    assert!(composer.draft.textarea.is_vim_visual_mode());
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    escape(&mut composer);
+    assert!(composer.draft.textarea.is_vim_normal_mode());
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "ne two\nthree");
+}
+
+#[test]
 fn counted_navigation_and_cancellation_preserve_redo_without_snapshots() {
     let mut composer = vim_composer("one two three four");
     keys(&mut composer, "x");
