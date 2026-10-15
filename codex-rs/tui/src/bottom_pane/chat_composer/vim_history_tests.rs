@@ -52,7 +52,7 @@ fn ctrl_r(composer: &mut ChatComposer) {
 fn visual_navigation_cancellation_and_unsupported_edits_preserve_redo() {
     let mut composer = vim_composer("one two\nthree");
     keys(&mut composer, "xu");
-    keys(&mut composer, "v2wjkdcypPu");
+    keys(&mut composer, "v2wjkipPu");
     ctrl_r(&mut composer);
     let (result, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     assert!(matches!(result, InputResult::None));
@@ -1043,4 +1043,80 @@ fn line_shortcuts_keep_complete_edits_in_one_undo_and_navigation_preserves_redo(
         ctrl_r(&mut composer);
         assert_eq!(composer.current_text(), edited);
     }
+}
+
+#[test]
+fn visual_change_and_dot_are_each_one_complete_undo_transaction() {
+    let mut composer = vim_composer("abcd efgh");
+    keys(&mut composer, "vlcXY");
+    assert_eq!(composer.current_text(), "XYcd efgh");
+    assert!(composer.vim_history.pending.is_some());
+    escape(&mut composer);
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "wu");
+    assert_eq!(composer.current_text(), "abcd efgh");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "XYcd efgh");
+    composer.draft.textarea.set_cursor(5);
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "XYcd XYgh");
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "XYcd efgh");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "XYcd XYgh");
+}
+
+#[test]
+fn visual_yank_and_cancel_preserve_redo_and_last_change() {
+    let mut composer = vim_composer("abcd efgh");
+    keys(&mut composer, "xu");
+    keys(&mut composer, "vlyv");
+    escape(&mut composer);
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "bcd efgh");
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "cd efgh");
+}
+
+#[test]
+fn visual_delete_and_change_undo_restore_image_metadata_and_atomic_marker() {
+    for operator in ['d', 'c'] {
+        let mut composer = vim_composer("alpha ");
+        composer.draft.textarea.set_cursor("alpha ".len());
+        composer.attach_image(PathBuf::from("example.png"));
+        composer.draft.textarea.set_cursor("alpha ".len());
+        let before = composer.draft_snapshot();
+        keys(&mut composer, &format!("v{operator}"));
+        assert!(composer.local_image_paths().is_empty());
+        if operator == 'c' {
+            keys(&mut composer, "replacement");
+            escape(&mut composer);
+        }
+        let after = composer.draft_snapshot();
+        keys(&mut composer, "u");
+        assert_eq!(composer.draft_snapshot(), before);
+        assert!(composer.draft.textarea.is_vim_normal_mode());
+        ctrl_r(&mut composer);
+        assert_eq!(composer.draft_snapshot(), after);
+    }
+}
+
+#[test]
+fn visual_find_target_and_empty_delete_do_not_create_undo_entries() {
+    let mut composer = vim_composer("abcd");
+    keys(&mut composer, "xu");
+    keys(&mut composer, "vfd");
+    assert!(composer.draft.textarea.is_vim_visual_mode());
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    escape(&mut composer);
+    let mut empty = vim_composer("");
+    keys(&mut empty, "vd");
+    assert!(empty.draft.textarea.is_vim_normal_mode());
+    assert!(empty.vim_history.pending.is_none());
+    assert!(empty.vim_history.undo.is_empty());
 }

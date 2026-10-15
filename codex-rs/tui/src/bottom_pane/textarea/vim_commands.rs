@@ -55,6 +55,7 @@ pub(super) enum VimEditTarget {
         count: usize,
     },
     Character,
+    Visual(super::vim_visual::VimVisualShape),
     Line,
     LineEnd,
     Motion(VimMotion),
@@ -310,21 +311,23 @@ impl TextArea {
             };
             match action {
                 VimAction::Delete(target) | VimAction::Change(target) => {
-                    if let VimEditTarget::Counted {
-                        count: recorded, ..
-                    } = target
-                    {
-                        *recorded = count;
-                    } else {
-                        // Replace the command's count, rather than repeating the old range.
-                        let inner = match target.clone() {
-                            VimEditTarget::LineEnd => VimEditTarget::Motion(VimMotion::LineEnd),
-                            target => target,
-                        };
-                        *target = VimEditTarget::Counted {
-                            target: Box::new(inner),
-                            count,
-                        };
+                    match target {
+                        // Vim preserves a characterwise Visual shape even with a dot count.
+                        VimEditTarget::Visual(_) => {}
+                        VimEditTarget::Counted {
+                            count: recorded, ..
+                        } => *recorded = count,
+                        target => {
+                            // Replace the command's count, rather than repeating the old range.
+                            let inner = match target.clone() {
+                                VimEditTarget::LineEnd => VimEditTarget::Motion(VimMotion::LineEnd),
+                                target => target,
+                            };
+                            *target = VimEditTarget::Counted {
+                                target: Box::new(inner),
+                                count,
+                            };
+                        }
                     }
                 }
                 VimAction::Replace {
@@ -422,6 +425,11 @@ impl TextArea {
                 match target {
                     VimEditTarget::Counted { target, count } => {
                         if !self.apply_vim_counted_target(operator, *target, count) {
+                            return false;
+                        }
+                    }
+                    VimEditTarget::Visual(shape) => {
+                        if !self.apply_vim_visual_shape(operator, shape) {
                             return false;
                         }
                     }

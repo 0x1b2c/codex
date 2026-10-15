@@ -161,11 +161,133 @@ fn visual_foundation_consumes_unsupported_edits_and_supports_a_digit_binding() {
     t.set_keymap_bindings(&runtime);
     keys(&mut t, "2");
     assert!(t.is_vim_visual_mode());
-    keys(&mut t, "dcyipPxu.");
+    keys(&mut t, "ipPxu.");
     t.input(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
     assert_eq!(t.text(), "abc");
     assert!(!t.is_vim_operator_pending());
     assert!(t.is_vim_visual_mode());
     t.input(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert_eq!(t.vim_visual_range(), None);
+}
+
+#[test]
+fn visual_delete_and_yank_use_the_inclusive_range_in_both_directions() {
+    for (cursor, sequence) in [(1, "vjld"), (7, "vkhd")] {
+        let mut t = textarea("abcd\nefgh\nlast", cursor);
+        keys(&mut t, sequence);
+        assert_eq!(t.text(), "ah\nlast");
+        assert_eq!(t.kill_buffer, "bcd\nefg");
+        assert_eq!(
+            t.kill_buffer_kind,
+            super::super::KillBufferKind::Characterwise
+        );
+        assert_eq!(t.cursor(), 1);
+        assert!(t.is_vim_normal_mode());
+        assert!(t.vim_visual_range().is_none());
+    }
+    let mut t = textarea("abcd\nefgh", 7);
+    keys(&mut t, "vkhy");
+    assert_eq!(t.text(), "abcd\nefgh");
+    assert_eq!(t.kill_buffer, "bcd\nefg");
+    assert_eq!(t.cursor(), 1);
+    assert!(t.vim_commands.last_change.is_empty());
+    assert!(t.is_vim_normal_mode());
+}
+
+#[test]
+fn visual_delete_repeats_atomic_width_and_ignores_dot_count_like_vim() {
+    let mut t = textarea("e\u{301}👩‍💻中abcd", 0);
+    keys(&mut t, "vld");
+    assert_eq!(t.text(), "中abcd");
+    keys(&mut t, "3.");
+    assert_eq!(t.text(), "bcd");
+    assert_eq!(t.kill_buffer, "中a");
+    t.set_cursor(t.text().len() - 1);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "bc");
+    assert_eq!(t.cursor(), 1);
+}
+
+#[test]
+fn visual_multiline_dot_uses_last_line_column_and_clamps_short_lines() {
+    let mut t = textarea("abcd\nefgh\ni\njklmn\nop", 1);
+    keys(&mut t, "vjld");
+    assert_eq!(t.text(), "ah\ni\njklmn\nop");
+    t.set_cursor(3);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "ah\nmn\nop");
+    t.set_cursor(4);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "ah\nm");
+    assert_eq!(t.kill_buffer, "n\nop");
+}
+
+#[test]
+fn visual_change_records_complete_insert_session_and_keeps_atomic_elements_whole() {
+    let mut t = textarea("ab", 2);
+    t.insert_element("<element>");
+    t.insert_str("cd");
+    t.set_cursor(0);
+    keys(&mut t, "v2lcXY");
+    assert_eq!(t.text(), "XYcd");
+    assert!(t.elements.is_empty());
+    assert_eq!(t.kill_buffer, "ab<element>");
+    assert_eq!(t.vim_mode_label(), Some("Insert"));
+    t.input(KeyEvent::from(KeyCode::Esc));
+    t.set_cursor(2);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "XYXY");
+    assert!(t.is_vim_normal_mode());
+}
+
+#[test]
+fn visual_empty_edits_and_cancel_preserve_last_change_and_clear_selection() {
+    for operator in ['d', 'y', 'c'] {
+        let mut t = textarea("x", 0);
+        keys(&mut t, "xv");
+        let before = format!("{:?}", t.vim_commands.last_change);
+        keys(&mut t, &operator.to_string());
+        if operator == 'c' {
+            assert_eq!(t.vim_mode_label(), Some("Insert"));
+            t.input(KeyEvent::from(KeyCode::Esc));
+        }
+        assert_eq!(t.text(), "");
+        assert!(t.vim_visual_range().is_none());
+        assert_eq!(format!("{:?}", t.vim_commands.last_change), before);
+    }
+    let mut t = textarea("\nz", 0);
+    keys(&mut t, "vd");
+    assert_eq!(t.text(), "z");
+    assert_eq!(t.kill_buffer, "\n");
+}
+
+#[test]
+fn visual_operators_use_configured_normal_bindings_including_digits() {
+    for (operator, mode) in [('d', "Normal"), ('c', "Insert"), ('y', "Normal")] {
+        let mut t = textarea("abc", 0);
+        let mut runtime = RuntimeKeymap::defaults();
+        let bindings = match operator {
+            'd' => &mut runtime.vim_normal.start_delete_operator,
+            'c' => &mut runtime.vim_normal.start_change_operator,
+            _ => &mut runtime.vim_normal.start_yank_operator,
+        };
+        *bindings = vec![crate::key_hint::plain(KeyCode::Char('2'))];
+        t.set_keymap_bindings(&runtime);
+        keys(&mut t, "vl2");
+        assert_eq!(t.text(), if operator == 'y' { "abc" } else { "c" });
+        assert_eq!(t.kill_buffer, "ab");
+        assert_eq!(t.vim_mode_label(), Some(mode));
+    }
+}
+
+#[test]
+fn visual_operator_binding_is_literal_during_a_pending_find() {
+    let mut t = textarea("abcd", 0);
+    keys(&mut t, "vfd");
+    assert_eq!(t.text(), "abcd");
+    assert!(t.is_vim_visual_mode());
+    assert_eq!(t.cursor(), 3);
+    assert!(t.vim_commands.last_change.is_empty());
+    t.input(KeyEvent::from(KeyCode::Esc));
+    assert!(t.vim_visual_range().is_none());
 }
