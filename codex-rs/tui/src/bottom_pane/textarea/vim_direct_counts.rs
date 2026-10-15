@@ -22,6 +22,16 @@ impl TextArea {
                 VimEditTarget::Character,
             ),
             (
+                &keys.delete_before_cursor,
+                VimOperator::Delete,
+                VimEditTarget::Motion(VimMotion::Left),
+            ),
+            (
+                &keys.substitute_line,
+                VimOperator::Change,
+                VimEditTarget::Line,
+            ),
+            (
                 &keys.substitute_char,
                 VimOperator::Change,
                 VimEditTarget::Character,
@@ -65,6 +75,8 @@ impl TextArea {
     pub(super) fn vim_counted_direct_key_may_edit(&self, event: KeyEvent) -> bool {
         let keys = &self.vim_normal_keymap;
         keys.delete_char.is_pressed(event)
+            || keys.delete_before_cursor.is_pressed(event)
+            || keys.substitute_line.is_pressed(event)
             || keys.substitute_char.is_pressed(event)
             || keys.delete_to_line_end.is_pressed(event)
             || keys.change_to_line_end.is_pressed(event)

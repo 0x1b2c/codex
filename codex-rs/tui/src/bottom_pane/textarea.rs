@@ -946,6 +946,19 @@ impl TextArea {
             self.set_cursor(self.beginning_of_current_line());
             return;
         }
+        if self.vim_normal_keymap.move_first_nonblank.is_pressed(event) {
+            self.set_cursor(self.vim_first_nonblank());
+            return;
+        }
+        if self
+            .vim_normal_keymap
+            .delete_before_cursor
+            .is_pressed(event)
+            || self.vim_normal_keymap.substitute_line.is_pressed(event)
+        {
+            self.handle_vim_counted_direct_edit(event, 1);
+            return;
+        }
         if self.vim_normal_keymap.move_line_end.is_pressed(event) {
             self.set_cursor(self.vim_line_end_cursor());
             return;
@@ -1149,6 +1162,13 @@ impl TextArea {
         if self.vim_operator_keymap.motion_line_start.is_pressed(event) {
             return Some(VimMotion::LineStart);
         }
+        if self
+            .vim_operator_keymap
+            .motion_first_nonblank
+            .is_pressed(event)
+        {
+            return Some(VimMotion::FirstNonblank);
+        }
         if self.vim_operator_keymap.motion_line_end.is_pressed(event) {
             return Some(VimMotion::LineEnd);
         }
@@ -1269,6 +1289,7 @@ impl TextArea {
             | VimMotion::BigWordBackward
             | VimMotion::BigWordEnd
             | VimMotion::LineStart
+            | VimMotion::FirstNonblank
             | VimMotion::LineEnd => return None,
         };
         (range.start < range.end).then_some(range)
@@ -1303,6 +1324,7 @@ impl TextArea {
                 self.set_cursor(self.vim_word_end_exclusive(VimWordKind::BigWord))
             }
             VimMotion::LineStart => self.set_cursor(self.beginning_of_current_line()),
+            VimMotion::FirstNonblank => self.set_cursor(self.vim_first_nonblank()),
             VimMotion::LineEnd => self.set_cursor(self.end_of_current_line()),
         }
         let target = self.cursor_pos;

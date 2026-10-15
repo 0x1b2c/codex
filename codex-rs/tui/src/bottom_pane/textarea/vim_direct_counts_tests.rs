@@ -141,3 +141,109 @@ fn counted_paste_and_replace_reject_impossible_allocations_without_changes() {
     assert_eq!(t.text(), "axyxyxyxybc");
     assert_eq!(t.cursor(), 4);
 }
+
+#[test]
+fn line_start_shortcut_ignores_counts_and_operators_use_an_exclusive_boundary() {
+    for (text, cursor, command, expected_cursor) in [
+        ("  abc\n  def", 4, "2^", 2),
+        ("   \nnext", 0, "^", 2),
+        ("\nnext", 0, "^", 0),
+        ("\t e\u{301}中", 5, "^", 2),
+    ] {
+        let mut t = textarea(text, cursor);
+        keys(&mut t, command);
+        assert_eq!(t.cursor(), expected_cursor, "{command} in {text:?}");
+        assert_eq!(t.text(), text);
+    }
+    for command in ["d^", "2d3^"] {
+        let mut t = textarea("  abc\nnext", 4);
+        keys(&mut t, command);
+        assert_eq!(t.text(), "  c\nnext");
+        assert_eq!(t.kill_buffer, "ab");
+    }
+    let mut t = textarea("   ", 1);
+    keys(&mut t, "d^");
+    assert_eq!((t.text(), t.kill_buffer.as_str()), ("  ", " "));
+    let mut t = textarea("  abc", 0);
+    keys(&mut t, "y^");
+    assert_eq!(t.kill_buffer, "  ");
+}
+
+#[test]
+fn delete_before_shortcut_respects_counts_lines_graphemes_and_dot() {
+    let mut t = textarea("abcdefghi\nnext", 6);
+    keys(&mut t, "2X");
+    assert_eq!((t.text(), t.kill_buffer.as_str()), ("abcdghi\nnext", "ef"));
+    keys(&mut t, "3.");
+    assert_eq!((t.text(), t.kill_buffer.as_str()), ("aghi\nnext", "bcd"));
+    keys(&mut t, ".");
+    assert_eq!((t.text(), t.kill_buffer.as_str()), ("ghi\nnext", "a"));
+    t.set_cursor(4);
+    keys(&mut t, "99999999999999999999999999999999X");
+    assert_eq!(t.text(), "ghi\nnext");
+    let mut t = textarea("e\u{301}👩‍💻", 0);
+    t.set_cursor(t.text().len());
+    t.insert_element("<attachment>");
+    t.insert_str("z\nnext");
+    t.set_cursor(t.text().find('z').unwrap());
+    keys(&mut t, "3X");
+    assert_eq!(t.text(), "z\nnext");
+    assert_eq!(t.kill_buffer, "e\u{301}👩‍💻<attachment>");
+    assert!(t.elements.is_empty());
+}
+
+#[test]
+fn substitute_line_shortcut_changes_counted_lines_and_replays_the_inserted_text() {
+    let mut t = textarea("one\ntwo\nthree\nfour\nfive", 1);
+    keys(&mut t, "2Snew");
+    t.input(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(t.text(), "new\nthree\nfour\nfive");
+    assert_eq!(t.kill_buffer, "one\ntwo\n");
+    assert_eq!(t.kill_buffer_kind, KillBufferKind::Linewise);
+    t.set_cursor(4);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "new\nnew\nfive");
+    t.set_cursor(8);
+    keys(&mut t, "1.");
+    assert_eq!(t.text(), "new\nnew\nnew");
+    let mut trailing_empty = textarea("a\n", 0);
+    keys(&mut trailing_empty, "2SX");
+    assert_eq!(trailing_empty.text(), "X");
+    for (text, cursor, expected) in [
+        ("a\nb", 2, "a\nX"),
+        ("a\n", 2, "a\nX"),
+        ("a\n", 0, "X\n"),
+        ("\n", 0, "X\n"),
+        ("\nnext", 0, "X\nnext"),
+        ("", 0, "X"),
+    ] {
+        let mut t = textarea(text, cursor);
+        keys(&mut t, "SX");
+        assert_eq!(t.text(), expected);
+        assert!(!t.is_vim_normal_mode());
+    }
+}
+
+#[test]
+fn line_shortcuts_accept_shift_events_and_remapped_digits_before_numeric_prefixes() {
+    let mut t = textarea("abcd", 3);
+    t.input(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::SHIFT));
+    assert_eq!(t.text(), "abd");
+    t.input(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::SHIFT));
+    assert_eq!(t.text(), "");
+    assert!(!t.is_vim_normal_mode());
+    let digit = vec![crate::key_hint::plain(KeyCode::Char('2'))];
+    let mut t = textarea("  abc", 4);
+    t.vim_normal_keymap.move_first_nonblank = digit.clone();
+    keys(&mut t, "2");
+    assert_eq!(t.cursor(), 2);
+    assert!(!t.is_vim_operator_pending());
+    t.vim_normal_keymap.move_first_nonblank.clear();
+    t.vim_normal_keymap.delete_before_cursor = digit.clone();
+    keys(&mut t, "2");
+    assert_eq!(t.text(), " abc");
+    t.vim_normal_keymap.delete_before_cursor.clear();
+    t.vim_normal_keymap.substitute_line = digit;
+    keys(&mut t, "2Z");
+    assert_eq!(t.text(), "Z");
+}

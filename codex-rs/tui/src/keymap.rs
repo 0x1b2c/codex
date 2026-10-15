@@ -232,6 +232,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) move_big_word_backward: Vec<KeyBinding>,
     pub(crate) move_big_word_end: Vec<KeyBinding>,
     pub(crate) move_line_start: Vec<KeyBinding>,
+    pub(crate) move_first_nonblank: Vec<KeyBinding>,
     pub(crate) move_line_end: Vec<KeyBinding>,
     pub(crate) find_forward: Vec<KeyBinding>,
     pub(crate) find_backward: Vec<KeyBinding>,
@@ -242,9 +243,11 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) jump_top: Vec<KeyBinding>,
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) delete_char: Vec<KeyBinding>,
+    pub(crate) delete_before_cursor: Vec<KeyBinding>,
     pub(crate) replace_char: Vec<KeyBinding>,
     pub(crate) repeat_last_change: Vec<KeyBinding>,
     pub(crate) substitute_char: Vec<KeyBinding>,
+    pub(crate) substitute_line: Vec<KeyBinding>,
     pub(crate) delete_to_line_end: Vec<KeyBinding>,
     pub(crate) change_to_line_end: Vec<KeyBinding>,
     pub(crate) yank_line: Vec<KeyBinding>,
@@ -278,6 +281,7 @@ pub(crate) struct VimOperatorKeymap {
     pub(crate) motion_big_word_backward: Vec<KeyBinding>,
     pub(crate) motion_big_word_end: Vec<KeyBinding>,
     pub(crate) motion_line_start: Vec<KeyBinding>,
+    pub(crate) motion_first_nonblank: Vec<KeyBinding>,
     pub(crate) motion_line_end: Vec<KeyBinding>,
     pub(crate) motion_find_forward: Vec<KeyBinding>,
     pub(crate) motion_find_backward: Vec<KeyBinding>,
@@ -885,6 +889,7 @@ impl RuntimeKeymap {
             ),
             move_big_word_end: resolve_local!(keymap, defaults, vim_normal, move_big_word_end),
             move_line_start: resolve_local!(keymap, defaults, vim_normal, move_line_start),
+            move_first_nonblank: resolve_local!(keymap, defaults, vim_normal, move_first_nonblank),
             move_line_end: resolve_local!(keymap, defaults, vim_normal, move_line_end),
             find_forward: resolve_local!(keymap, defaults, vim_normal, find_forward),
             find_backward: resolve_local!(keymap, defaults, vim_normal, find_backward),
@@ -895,9 +900,16 @@ impl RuntimeKeymap {
             jump_top: resolve_local!(keymap, defaults, vim_normal, jump_top),
             jump_bottom: resolve_local!(keymap, defaults, vim_normal, jump_bottom),
             delete_char: resolve_local!(keymap, defaults, vim_normal, delete_char),
+            delete_before_cursor: resolve_local!(
+                keymap,
+                defaults,
+                vim_normal,
+                delete_before_cursor
+            ),
             replace_char: resolve_local!(keymap, defaults, vim_normal, replace_char),
             repeat_last_change: resolve_local!(keymap, defaults, vim_normal, repeat_last_change),
             substitute_char: resolve_local!(keymap, defaults, vim_normal, substitute_char),
+            substitute_line: resolve_local!(keymap, defaults, vim_normal, substitute_line),
             delete_to_line_end: resolve_local!(keymap, defaults, vim_normal, delete_to_line_end),
             change_to_line_end: resolve_local!(keymap, defaults, vim_normal, change_to_line_end),
             yank_line: resolve_local!(keymap, defaults, vim_normal, yank_line),
@@ -994,6 +1006,10 @@ impl RuntimeKeymap {
                 vim_normal.move_line_start.as_slice(),
             ),
             (
+                keymap.vim_normal.move_first_nonblank.as_ref(),
+                vim_normal.move_first_nonblank.as_slice(),
+            ),
+            (
                 keymap.vim_normal.move_line_end.as_ref(),
                 vim_normal.move_line_end.as_slice(),
             ),
@@ -1034,12 +1050,20 @@ impl RuntimeKeymap {
                 vim_normal.delete_char.as_slice(),
             ),
             (
+                keymap.vim_normal.delete_before_cursor.as_ref(),
+                vim_normal.delete_before_cursor.as_slice(),
+            ),
+            (
                 keymap.vim_normal.replace_char.as_ref(),
                 vim_normal.replace_char.as_slice(),
             ),
             (
                 keymap.vim_normal.substitute_char.as_ref(),
                 vim_normal.substitute_char.as_slice(),
+            ),
+            (
+                keymap.vim_normal.substitute_line.as_ref(),
+                vim_normal.substitute_line.as_slice(),
             ),
             (
                 keymap.vim_normal.repeat_last_change.as_ref(),
@@ -1108,6 +1132,35 @@ impl RuntimeKeymap {
                             && chord.chord.prefix.parts() == binding.parts()
                     })
             });
+        }
+        for (configured, bindings) in [
+            (
+                keymap.vim_normal.move_first_nonblank.as_ref(),
+                &mut vim_normal.move_first_nonblank,
+            ),
+            (
+                keymap.vim_normal.delete_before_cursor.as_ref(),
+                &mut vim_normal.delete_before_cursor,
+            ),
+            (
+                keymap.vim_normal.substitute_line.as_ref(),
+                &mut vim_normal.substitute_line,
+            ),
+        ] {
+            if configured.is_none() {
+                bindings.retain(|binding| {
+                    !configured_vim_normal_bindings_to_preserve
+                        .iter()
+                        .any(|configured| {
+                            configured.normalized_parts() == binding.normalized_parts()
+                        })
+                        && !chords.bindings.iter().any(|chord| {
+                            chord.action.context == KeymapContext::VimNormal
+                                && chord.chord.prefix.normalized_parts()
+                                    == binding.normalized_parts()
+                        })
+                });
+            }
         }
         for (configured, bindings) in [
             (
@@ -1192,6 +1245,12 @@ impl RuntimeKeymap {
                 motion_big_word_end
             ),
             motion_line_start: resolve_local!(keymap, defaults, vim_operator, motion_line_start),
+            motion_first_nonblank: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_first_nonblank
+            ),
             motion_line_end: resolve_local!(keymap, defaults, vim_operator, motion_line_end),
             motion_find_forward: resolve_local!(
                 keymap,
@@ -1295,6 +1354,10 @@ impl RuntimeKeymap {
                 vim_operator.motion_line_start.as_slice(),
             ),
             (
+                keymap.vim_operator.motion_first_nonblank.as_ref(),
+                vim_operator.motion_first_nonblank.as_slice(),
+            ),
+            (
                 keymap.vim_operator.motion_line_end.as_ref(),
                 vim_operator.motion_line_end.as_slice(),
             ),
@@ -1345,6 +1408,25 @@ impl RuntimeKeymap {
             vim_operator
                 .select_around_text_object
                 .retain(|binding| !configured_vim_operator_bindings_to_preserve.contains(binding));
+        }
+        for (configured, bindings) in [(
+            keymap.vim_operator.motion_first_nonblank.as_ref(),
+            &mut vim_operator.motion_first_nonblank,
+        )] {
+            if configured.is_none() {
+                bindings.retain(|binding| {
+                    !configured_vim_operator_bindings_to_preserve
+                        .iter()
+                        .any(|configured| {
+                            configured.normalized_parts() == binding.normalized_parts()
+                        })
+                        && !chords.bindings.iter().any(|chord| {
+                            chord.action.context == KeymapContext::VimOperator
+                                && chord.chord.prefix.normalized_parts()
+                                    == binding.normalized_parts()
+                        })
+                });
+            }
         }
         for (configured, bindings) in [
             (
@@ -1904,6 +1986,10 @@ impl RuntimeKeymap {
                     plain(KeyCode::Char('E'))
                 ],
                 move_line_start: default_bindings![plain(KeyCode::Char('0'))],
+                move_first_nonblank: default_bindings![
+                    plain(KeyCode::Char('^')),
+                    shift(KeyCode::Char('^'))
+                ],
                 move_line_end: default_bindings![
                     plain(KeyCode::Char('$')),
                     shift(KeyCode::Char('$'))
@@ -1920,9 +2006,17 @@ impl RuntimeKeymap {
                     plain(KeyCode::Char('G'))
                 ],
                 delete_char: default_bindings![plain(KeyCode::Char('x'))],
+                delete_before_cursor: default_bindings![
+                    shift(KeyCode::Char('x')),
+                    plain(KeyCode::Char('X'))
+                ],
                 replace_char: default_bindings![plain(KeyCode::Char('r'))],
                 repeat_last_change: default_bindings![plain(KeyCode::Char('.'))],
                 substitute_char: default_bindings![plain(KeyCode::Char('s'))],
+                substitute_line: default_bindings![
+                    shift(KeyCode::Char('s')),
+                    plain(KeyCode::Char('S'))
+                ],
                 delete_to_line_end: default_bindings![
                     shift(KeyCode::Char('d')),
                     plain(KeyCode::Char('D'))
@@ -1964,6 +2058,10 @@ impl RuntimeKeymap {
                     plain(KeyCode::Char('E'))
                 ],
                 motion_line_start: default_bindings![plain(KeyCode::Char('0'))],
+                motion_first_nonblank: default_bindings![
+                    plain(KeyCode::Char('^')),
+                    shift(KeyCode::Char('^'))
+                ],
                 motion_line_end: default_bindings![
                     plain(KeyCode::Char('$')),
                     shift(KeyCode::Char('$'))
@@ -3195,6 +3293,42 @@ mod tests {
         keymap.chat.increase_reasoning_effort = Some(one("shift-up"));
 
         expect_conflict(&keymap, "chat.increase_reasoning_effort", "editor.move_up");
+    }
+
+    #[test]
+    fn vim_line_shortcuts_are_configurable_and_yield_to_explicit_legacy_bindings() {
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_first_nonblank = Some(one("2"));
+        config.vim_normal.delete_before_cursor = Some(one("3"));
+        config.vim_normal.substitute_line = Some(one("4"));
+        config.vim_operator.motion_first_nonblank = Some(one("5"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("line shortcuts should remap");
+        assert_eq!(
+            runtime.vim_normal.move_first_nonblank,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        assert_eq!(
+            runtime.vim_normal.delete_before_cursor,
+            vec![key_hint::plain(KeyCode::Char('3'))]
+        );
+        assert_eq!(
+            runtime.vim_normal.substitute_line,
+            vec![key_hint::plain(KeyCode::Char('4'))]
+        );
+        assert_eq!(
+            runtime.vim_operator.motion_first_nonblank,
+            vec![key_hint::plain(KeyCode::Char('5'))]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_left = Some(one("X"));
+        let runtime =
+            RuntimeKeymap::from_config(&config).expect("explicit binding should take precedence");
+        assert!(
+            !runtime
+                .vim_normal
+                .delete_before_cursor
+                .contains(&key_hint::plain(KeyCode::Char('X')))
+        );
     }
 
     #[test]

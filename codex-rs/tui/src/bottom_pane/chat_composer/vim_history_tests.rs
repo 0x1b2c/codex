@@ -973,3 +973,23 @@ fn digit_bound_repeat_operator_creates_one_undo_transaction() {
     keys(&mut composer, "u");
     assert_eq!(composer.current_text(), "xa1a2a3a4a");
 }
+
+#[test]
+fn line_shortcuts_keep_complete_edits_in_one_undo_and_navigation_preserves_redo() {
+    for (original, command, edited) in [
+        ("  abcdef", "$3X", "  abf"),
+        ("one\ntwo\nthree", "2Snew", "new\nthree"),
+    ] {
+        let mut composer = vim_composer(original);
+        keys(&mut composer, command);
+        escape(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u2^");
+        assert_eq!(composer.current_text(), original);
+        assert!(composer.vim_history.pending.is_none());
+        assert_eq!(composer.vim_history.redo.len(), 1);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+    }
+}

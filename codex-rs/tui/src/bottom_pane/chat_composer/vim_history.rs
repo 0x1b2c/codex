@@ -137,6 +137,7 @@ impl ChatComposer {
                     .is_pressed(event)
                 || self.vim_normal_keymap.move_big_word_end.is_pressed(event)
                 || self.vim_normal_keymap.move_line_start.is_pressed(event)
+                || self.vim_normal_keymap.move_first_nonblank.is_pressed(event)
                 || self.vim_normal_keymap.move_line_end.is_pressed(event)
                 || self.vim_normal_keymap.repeat_find.is_pressed(event)
                 || self.vim_normal_keymap.reverse_find.is_pressed(event)

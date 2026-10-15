@@ -295,6 +295,8 @@ pub struct TuiVimNormalKeymap {
     pub move_big_word_end: Option<KeybindingsSpec>,
     /// Move cursor to start of line (`0`).
     pub move_line_start: Option<KeybindingsSpec>,
+    /// Move cursor to the first nonblank character (`^`).
+    pub move_first_nonblank: Option<KeybindingsSpec>,
     /// Move cursor to end of line (`$`).
     pub move_line_end: Option<KeybindingsSpec>,
     /// Find the next character on the current line (`f`).
@@ -315,12 +317,16 @@ pub struct TuiVimNormalKeymap {
     pub jump_bottom: Option<KeybindingsSpec>,
     /// Delete character under cursor (`x`).
     pub delete_char: Option<KeybindingsSpec>,
+    /// Delete the character before the cursor (`X`).
+    pub delete_before_cursor: Option<KeybindingsSpec>,
     /// Replace the character under the cursor (`r`).
     pub replace_char: Option<KeybindingsSpec>,
     /// Repeat the last complete edit (`.`).
     pub repeat_last_change: Option<KeybindingsSpec>,
     /// Delete character under cursor and enter insert mode (`s`).
     pub substitute_char: Option<KeybindingsSpec>,
+    /// Change the entire line and enter insert mode (`S`).
+    pub substitute_line: Option<KeybindingsSpec>,
     /// Delete from cursor to end of line (`D`).
     pub delete_to_line_end: Option<KeybindingsSpec>,
     /// Change from cursor to end of line and enter insert mode (`C`).
@@ -378,6 +384,8 @@ pub struct TuiVimOperatorKeymap {
     pub motion_big_word_end: Option<KeybindingsSpec>,
     /// Motion: to start of line (`0`).
     pub motion_line_start: Option<KeybindingsSpec>,
+    /// Operator motion to the first nonblank character (`^`).
+    pub motion_first_nonblank: Option<KeybindingsSpec>,
     /// Motion: to end of line (`$`).
     pub motion_line_end: Option<KeybindingsSpec>,
     /// Motion: find the next character on the current line (`f`).

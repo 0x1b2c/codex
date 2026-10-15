@@ -1,5 +1,6 @@
 //! Resolve operator counts before mutating text, preserving one register and undo transaction.
 
+use super::KillBufferKind;
 use super::TextArea;
 use super::VimMode;
 use super::VimMotion;
@@ -130,6 +131,7 @@ impl TextArea {
     ) -> bool {
         let origin = self.cursor_pos;
         let preferred = self.preferred_col;
+        let line_count = matches!(target, VimEditTarget::Line).then_some(count);
         let clamp_delete = matches!(
             target,
             VimEditTarget::Character | VimEditTarget::Motion(VimMotion::LineEnd)
@@ -268,6 +270,7 @@ impl TextArea {
         };
         if range.is_empty() {
             if linewise && op == VimOperator::Change {
+                self.store_kill_buffer("\n".to_owned(), KillBufferKind::Linewise);
                 self.vim_mode = VimMode::Insert;
                 return true;
             }
@@ -283,8 +286,12 @@ impl TextArea {
                 VimOperator::Delete => self.kill_line_range(range),
                 VimOperator::Yank => self.yank_line_range(range),
                 VimOperator::Change => {
-                    let retain_newline =
-                        range.end < self.text.len() && self.text[range.clone()].ends_with('\n');
+                    let removed = &self.text[range.clone()];
+                    let retain_newline = removed.ends_with('\n')
+                        && (range.end < self.text.len()
+                            || line_count.is_some_and(|count| {
+                                count <= removed.bytes().filter(|byte| *byte == b'\n').count()
+                            }));
                     let start = range.start;
                     self.kill_line_range(range);
                     if retain_newline {

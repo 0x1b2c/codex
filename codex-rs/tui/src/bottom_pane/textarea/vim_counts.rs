@@ -44,6 +44,7 @@ impl TextArea {
             &keys.move_big_word_backward,
             &keys.move_big_word_end,
             &keys.move_line_start,
+            &keys.move_first_nonblank,
             &keys.move_line_end,
             &keys.find_forward,
             &keys.find_backward,
@@ -54,9 +55,11 @@ impl TextArea {
             &keys.jump_top,
             &keys.jump_bottom,
             &keys.delete_char,
+            &keys.delete_before_cursor,
             &keys.replace_char,
             &keys.repeat_last_change,
             &keys.substitute_char,
+            &keys.substitute_line,
             &keys.delete_to_line_end,
             &keys.change_to_line_end,
             &keys.yank_line,
@@ -184,6 +187,7 @@ impl TextArea {
         // Mode transitions and line-start retain their existing behavior. Unsupported counts
         // are consumed rather than silently turning a counted edit into a single edit.
         let uncounted = keys.move_line_start.is_pressed(event)
+            || keys.move_first_nonblank.is_pressed(event)
             || keys.enter_insert.is_pressed(event)
             || keys.append_after_cursor.is_pressed(event)
             || keys.append_line_end.is_pressed(event)

@@ -12,6 +12,24 @@ pub(super) enum VimHorizontalBoundary {
 }
 
 impl TextArea {
+    /// Vim's ^ ignores its count and treats only spaces and tabs as indentation.
+    pub(super) fn vim_first_nonblank(&self) -> usize {
+        let mut position = self.beginning_of_current_line();
+        let end = self.end_of_current_line();
+        while position < end {
+            let next = self.next_atomic_boundary(position);
+            if next > end
+                || !self.text[position..next]
+                    .chars()
+                    .all(|ch| matches!(ch, ' ' | '\t'))
+            {
+                return position;
+            }
+            position = next;
+        }
+        self.vim_line_end_cursor()
+    }
+
     pub(super) fn vim_horizontal_target(
         &self,
         direction: VimHorizontalDirection,

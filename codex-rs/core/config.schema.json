@@ -4828,6 +4828,7 @@
               "append_line_end": null,
               "cancel_operator": null,
               "change_to_line_end": null,
+              "delete_before_cursor": null,
               "delete_char": null,
               "delete_to_line_end": null,
               "enter_insert": null,
@@ -4841,6 +4842,7 @@
               "move_big_word_end": null,
               "move_big_word_forward": null,
               "move_down": null,
+              "move_first_nonblank": null,
               "move_left": null,
               "move_line_end": null,
               "move_line_start": null,
@@ -4861,6 +4863,7 @@
               "start_delete_operator": null,
               "start_yank_operator": null,
               "substitute_char": null,
+              "substitute_line": null,
               "till_backward": null,
               "till_forward": null,
               "undo": null,
@@ -4875,6 +4878,7 @@
               "motion_down": null,
               "motion_find_backward": null,
               "motion_find_forward": null,
+              "motion_first_nonblank": null,
               "motion_jump_bottom": null,
               "motion_jump_top": null,
               "motion_left": null,
@@ -5866,6 +5870,7 @@
             "append_line_end": null,
             "cancel_operator": null,
             "change_to_line_end": null,
+            "delete_before_cursor": null,
             "delete_char": null,
             "delete_to_line_end": null,
             "enter_insert": null,
@@ -5879,6 +5884,7 @@
             "move_big_word_end": null,
             "move_big_word_forward": null,
             "move_down": null,
+            "move_first_nonblank": null,
             "move_left": null,
             "move_line_end": null,
             "move_line_start": null,
@@ -5899,6 +5905,7 @@
             "start_delete_operator": null,
             "start_yank_operator": null,
             "substitute_char": null,
+            "substitute_line": null,
             "till_backward": null,
             "till_forward": null,
             "undo": null,
@@ -5920,6 +5927,7 @@
             "motion_down": null,
             "motion_find_backward": null,
             "motion_find_forward": null,
+            "motion_first_nonblank": null,
             "motion_jump_bottom": null,
             "motion_jump_top": null,
             "motion_left": null,
@@ -6236,6 +6244,14 @@
           ],
           "description": "Change from cursor to end of line and enter insert mode (`C`)."
         },
+        "delete_before_cursor": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Delete the character before the cursor (`X`)."
+        },
         "delete_char": {
           "allOf": [
             {
@@ -6339,6 +6355,14 @@
             }
           ],
           "description": "Move cursor down (`j`), or recall newer composer history at history boundaries."
+        },
+        "move_first_nonblank": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to the first nonblank character (`^`)."
         },
         "move_left": {
           "allOf": [
@@ -6500,6 +6524,14 @@
           ],
           "description": "Delete character under cursor and enter insert mode (`s`)."
         },
+        "substitute_line": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Change the entire line and enter insert mode (`S`)."
+        },
         "till_backward": {
           "allOf": [
             {
@@ -6602,6 +6634,14 @@
             }
           ],
           "description": "Motion: find the next character on the current line (`f`)."
+        },
+        "motion_first_nonblank": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Operator motion to the first nonblank character (`^`)."
         },
         "motion_jump_bottom": {
           "allOf": [
