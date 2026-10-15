@@ -58,6 +58,10 @@ mod mouse;
 mod single_line;
 mod vim;
 mod vim_commands;
+mod vim_horizontal;
+#[cfg(test)]
+#[path = "textarea/vim_horizontal_tests.rs"]
+mod vim_horizontal_tests;
 mod vim_search;
 mod vim_words;
 mod wrapping;
@@ -73,6 +77,8 @@ use self::vim_commands::VimCommandState;
 use self::vim_commands::VimEditTarget;
 use self::vim_commands::VimInsertPosition;
 pub(crate) use self::vim_commands::VimPersistentState;
+use self::vim_horizontal::VimHorizontalBoundary;
+use self::vim_horizontal::VimHorizontalDirection;
 use self::vim_words::VimWordKind;
 pub(crate) use editing::EditTarget;
 
@@ -860,11 +866,17 @@ impl TextArea {
             return;
         }
         if self.vim_normal_keymap.move_left.is_pressed(event) {
-            self.move_cursor_left();
+            self.set_cursor(self.vim_horizontal_target(
+                VimHorizontalDirection::Left,
+                VimHorizontalBoundary::Normal,
+            ));
             return;
         }
         if self.vim_normal_keymap.move_right.is_pressed(event) {
-            self.move_cursor_right();
+            self.set_cursor(self.vim_horizontal_target(
+                VimHorizontalDirection::Right,
+                VimHorizontalBoundary::Normal,
+            ));
             return;
         }
         if self.vim_normal_keymap.move_down.is_pressed(event) {
@@ -1228,8 +1240,14 @@ impl TextArea {
         let original_cursor = self.cursor_pos;
         let original_preferred = self.preferred_col;
         match motion {
-            VimMotion::Left => self.move_cursor_left(),
-            VimMotion::Right => self.move_cursor_right(),
+            VimMotion::Left => self.set_cursor(self.vim_horizontal_target(
+                VimHorizontalDirection::Left,
+                VimHorizontalBoundary::Operator,
+            )),
+            VimMotion::Right => self.set_cursor(self.vim_horizontal_target(
+                VimHorizontalDirection::Right,
+                VimHorizontalBoundary::Operator,
+            )),
             VimMotion::Up => self.move_cursor_up(),
             VimMotion::Down => self.move_cursor_down(),
             VimMotion::WordForward => self.set_cursor(self.vim_next_word_start(VimWordKind::Word)),
