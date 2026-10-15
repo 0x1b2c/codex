@@ -920,3 +920,19 @@ fn counted_text_object_changes_share_one_undo_with_the_whole_insertion() {
     assert!(composer.vim_history.pending.is_none());
     assert_eq!(composer.vim_history.redo.len(), 1);
 }
+
+#[test]
+fn counted_dot_is_one_undo_transaction_and_prefixes_preserve_redo() {
+    let mut composer = vim_composer("a b c d e f g h");
+    keys(&mut composer, "2dw3.");
+    assert_eq!(composer.current_text(), "f g h");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "c d e f g h");
+    keys(&mut composer, "4");
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    assert!(composer.vim_history.pending.is_none());
+    escape(&mut composer);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "f g h");
+}

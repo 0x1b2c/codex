@@ -55,6 +55,10 @@ impl TextArea {
             self.start_vim_edit(VimAction::PasteAfter { count });
             return true;
         }
+        if keys.repeat_last_change.is_pressed(event) {
+            self.repeat_vim_change(Some(count));
+            return true;
+        }
         false
     }
 
@@ -65,6 +69,7 @@ impl TextArea {
             || keys.delete_to_line_end.is_pressed(event)
             || keys.change_to_line_end.is_pressed(event)
             || keys.paste_after.is_pressed(event)
+            || keys.repeat_last_change.is_pressed(event)
     }
 
     pub(super) fn vim_counted_character_range(&self, count: usize) -> (Range<usize>, usize) {

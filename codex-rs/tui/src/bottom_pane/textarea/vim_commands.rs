@@ -292,10 +292,53 @@ impl TextArea {
         self.vim_commands.changed = false;
     }
 
-    pub(crate) fn begin_vim_repeat(&mut self) -> Option<Vec<VimEdit>> {
-        let edits = self.vim_repeat_actions()?;
+    pub(super) fn repeat_vim_change(&mut self, count: Option<usize>) {
+        let Some(mut edits) = self.vim_repeat_actions() else {
+            return;
+        };
+        if let Some(count) = count {
+            let Some(VimEdit::Editor(VimEditorEdit(action))) = edits.first_mut() else {
+                return;
+            };
+            match action {
+                VimAction::Delete(target) | VimAction::Change(target) => {
+                    if let VimEditTarget::Counted {
+                        count: recorded, ..
+                    } = target
+                    {
+                        *recorded = count;
+                    } else {
+                        // Replace the command's count, rather than repeating the old range.
+                        let inner = match target.clone() {
+                            VimEditTarget::LineEnd => VimEditTarget::Motion(VimMotion::LineEnd),
+                            target => target,
+                        };
+                        *target = VimEditTarget::Counted {
+                            target: Box::new(inner),
+                            count,
+                        };
+                    }
+                }
+                VimAction::Replace {
+                    count: recorded, ..
+                }
+                | VimAction::PasteAfter { count: recorded } => *recorded = count,
+                // Counted Insert and Replace sessions need their own replay semantics.
+                _ => return,
+            }
+        }
         self.vim_commands.replaying = true;
-        Some(edits)
+        let mut completed = true;
+        for edit in &edits {
+            if !self.apply_vim_edit(edit) {
+                completed = false;
+                break;
+            }
+        }
+        self.finish_vim_repeat();
+        if completed && count.is_some() {
+            self.vim_commands.last_change = edits;
+        }
     }
 
     pub(crate) fn finish_vim_repeat(&mut self) {
@@ -461,14 +504,7 @@ impl TextArea {
             return true;
         }
         if self.vim_normal_keymap.repeat_last_change.is_pressed(event) {
-            if let Some(edits) = self.begin_vim_repeat() {
-                for edit in edits {
-                    if !self.apply_vim_edit(&edit) {
-                        break;
-                    }
-                }
-                self.finish_vim_repeat();
-            }
+            self.repeat_vim_change(/*count*/ None);
             return true;
         }
         if self.vim_normal_keymap.find_forward.is_pressed(event) {

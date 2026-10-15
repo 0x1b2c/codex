@@ -819,3 +819,79 @@ fn search_skips_atomic_elements_and_partial_graphemes() {
     keys(&mut area, "/e\u{301}\n");
     assert_eq!(area.cursor(), "[photo.png]é ".len());
 }
+
+#[test]
+fn dot_count_replaces_the_recorded_operator_count_and_persists() {
+    let mut textarea = vim_textarea("a b c d e f g h i j k l", 0);
+    keys(&mut textarea, "2dw3.");
+    assert_eq!(textarea.text(), "f g h i j k l");
+    keys(&mut textarea, ".");
+    assert_eq!(textarea.text(), "i j k l");
+
+    let mut textarea = vim_textarea("a b c d e f g", 0);
+    keys(&mut textarea, "2dw.");
+    assert_eq!(textarea.text(), "e f g");
+}
+
+#[test]
+fn counted_dot_changes_one_range_then_inserts_the_recorded_text_once() {
+    let mut textarea = vim_textarea("one two three four five six seven eight", 0);
+    keys(&mut textarea, "2cwX\x1bw3.");
+    assert_eq!(textarea.text(), "X X six seven eight");
+    assert_eq!(textarea.vim_mode_label(), Some("Normal"));
+    keys(&mut textarea, "w.");
+    assert_eq!(textarea.text(), "X X X");
+}
+
+#[test]
+fn counted_dot_replaces_counts_for_text_objects_find_search_and_lines() {
+    for (text, command, expected) in [
+        ("one two three four five six", "daw2.", "four five six"),
+        ("a-b-c-d-e-f", "df-2.", "d-e-f"),
+        ("a b a c a d a e", "d/a\n2.", "a e"),
+        ("a\nb\nc\nd\ne\nf", "dd2.", "d\ne\nf"),
+    ] {
+        let mut textarea = vim_textarea(text, 0);
+        keys(&mut textarea, command);
+        assert_eq!(textarea.text(), expected, "{command}");
+    }
+    let mut textarea = vim_textarea("a\nb\nc\nd\ne\nf\ng\nh", 0);
+    keys(&mut textarea, "2dG3.");
+    assert_eq!(textarea.text(), "f\ng\nh");
+}
+
+#[test]
+fn dot_count_overrides_replace_and_paste_without_multiplying_the_old_count() {
+    let mut textarea = vim_textarea("abcdefghijk", 0);
+    keys(&mut textarea, "2rX3.");
+    assert_eq!(textarea.text(), "XXXXefghijk");
+    keys(&mut textarea, "l.");
+    assert_eq!(textarea.text(), "XXXXXXXhijk");
+
+    let mut textarea = vim_textarea("abc", 0);
+    textarea.kill_buffer = "X".to_owned();
+    keys(&mut textarea, "2p3.");
+    assert_eq!(textarea.text(), "aXXXXXbc");
+    keys(&mut textarea, ".");
+    assert_eq!(textarea.text(), "aXXXXXXXXbc");
+}
+
+#[test]
+fn failed_or_cancelled_dot_counts_preserve_the_previous_change() {
+    let mut textarea = vim_textarea("abcdefgh", 0);
+    keys(
+        &mut textarea,
+        "2rX$999999999999999999999999999999999999999.",
+    );
+    assert_eq!(textarea.text(), "XXcdefgh");
+    keys(&mut textarea, "03\x1b.");
+    assert_eq!(textarea.text(), "XXcdefgh");
+    keys(&mut textarea, "0ll.");
+    assert_eq!(textarea.text(), "XXXXefgh");
+
+    let mut textarea = vim_textarea("abc", 0);
+    keys(&mut textarea, "iX\x1b3.");
+    assert_eq!(textarea.text(), "Xabc");
+    keys(&mut textarea, ".");
+    assert_eq!(textarea.text(), "XXabc");
+}
