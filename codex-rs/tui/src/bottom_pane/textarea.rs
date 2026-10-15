@@ -58,6 +58,7 @@ mod mouse;
 mod single_line;
 mod vim;
 mod vim_commands;
+mod vim_counts;
 mod vim_horizontal;
 #[cfg(test)]
 #[path = "textarea/vim_horizontal_tests.rs"]
@@ -164,6 +165,7 @@ pub(crate) struct TextArea {
     vim_enabled: bool,
     vim_mode: VimMode,
     vim_pending: VimPending,
+    vim_count: Option<usize>,
     vim_commands: VimCommandState,
     vim_search: vim_search::VimSearch,
     vim_search_enabled: bool,
@@ -234,6 +236,7 @@ impl TextArea {
             vim_enabled: false,
             vim_mode: VimMode::Insert,
             vim_pending: VimPending::None,
+            vim_count: None,
             vim_commands: VimCommandState::default(),
             vim_search: vim_search::VimSearch::default(),
             vim_search_enabled: false,
@@ -311,6 +314,7 @@ impl TextArea {
         self.wrap_cache.replace(None);
         self.preferred_col = None;
         self.vim_pending = VimPending::None;
+        self.vim_count = None;
         self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
     }
@@ -324,6 +328,7 @@ impl TextArea {
     pub(crate) fn set_vim_enabled(&mut self, enabled: bool) {
         self.vim_enabled = enabled;
         self.vim_pending = VimPending::None;
+        self.vim_count = None;
         self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
         self.vim_mode = if enabled {
@@ -356,12 +361,14 @@ impl TextArea {
         }
     }
 
-    /// Return whether a Vim operator is waiting for a motion.
+    /// Return whether a Vim command is waiting for more keys.
     ///
     /// This is observable so the composer can avoid stealing the second key of
     /// `d{motion}` or `y{motion}` for higher-level shortcuts.
     pub(crate) fn is_vim_operator_pending(&self) -> bool {
-        self.vim_query().is_some() || !matches!(self.vim_pending, VimPending::None)
+        self.vim_count.is_some()
+            || self.vim_query().is_some()
+            || !matches!(self.vim_pending, VimPending::None)
     }
 
     /// Return the keymap context that owns the next editing key.
@@ -389,6 +396,7 @@ impl TextArea {
         if self.vim_enabled {
             self.vim_mode = VimMode::Insert;
             self.vim_pending = VimPending::None;
+            self.vim_count = None;
             self.clear_vim_replace_recovery();
             self.cancel_vim_search();
             if self.vim_commands.pending_change.is_empty() && !self.vim_commands.replaying {
@@ -407,6 +415,7 @@ impl TextArea {
         if self.vim_enabled {
             self.vim_mode = VimMode::Normal;
             self.vim_pending = VimPending::None;
+            self.vim_count = None;
             self.cancel_vim_search();
             self.preferred_col = None;
             self.clear_vim_replace_recovery();
@@ -835,6 +844,10 @@ impl TextArea {
                 self.handle_vim_pending_command(pending, event);
                 return;
             }
+        }
+
+        if self.handle_vim_counted_navigation(event) {
+            return;
         }
 
         if self.vim_normal_keymap.enter_insert.is_pressed(event) {

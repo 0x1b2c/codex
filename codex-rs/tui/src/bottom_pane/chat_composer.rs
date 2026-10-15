@@ -38,6 +38,8 @@
 //! Fresh Vim drafts start in Insert; Normal `/` and `?` search the composer.
 //! On an empty draft, a standalone Normal `/` enters Insert and opens command completion.
 //! Backspace on an empty Vim search query cancels search and any pending operator.
+//! Normal numeric prefixes keep subsequent keys in the textarea until their motion completes
+//! or Escape cancels it, including a configured multi-key motion such as `3gg`.
 //!
 //! # Completion and Popup Dismissal
 //!

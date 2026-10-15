@@ -131,10 +131,12 @@ impl TextArea {
             match (event.code, event.modifiers) {
                 (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                     self.vim_pending = VimPending::None;
+                    self.vim_count = None;
                     return true;
                 }
                 (KeyCode::Backspace, KeyModifiers::NONE) if input.editor.is_empty() => {
                     self.vim_pending = VimPending::None;
+                    self.vim_count = None;
                     return true;
                 }
                 (KeyCode::Enter, KeyModifiers::NONE) => {}
@@ -172,6 +174,7 @@ impl TextArea {
             }
             query
         };
+        let count = self.vim_count.take().unwrap_or(1);
         match std::mem::replace(&mut self.vim_pending, VimPending::None) {
             VimPending::Operator(VimOperator::Delete) => {
                 self.start_vim_edit(VimAction::Delete(VimEditTarget::Search(query)));
@@ -183,7 +186,7 @@ impl TextArea {
                 self.apply_vim_search(&query, Some(VimOperator::Yank));
             }
             _ => {
-                self.apply_vim_search(&query, /*operator*/ None);
+                self.apply_vim_search_count(&query, /*operator*/ None, count);
             }
         }
         true
@@ -194,15 +197,31 @@ impl TextArea {
         query: &SearchQuery,
         operator: Option<VimOperator>,
     ) -> bool {
+        self.apply_vim_search_count(query, operator, 1)
+    }
+
+    fn apply_vim_search_count(
+        &mut self,
+        query: &SearchQuery,
+        operator: Option<VimOperator>,
+        count: usize,
+    ) -> bool {
         let origin = self.cursor_pos;
         // Prefer matches before wrapping; order backward matches from the end.
-        let target = matching_ranges(&self.text, &query.text)
+        let targets = matching_ranges(&self.text, &query.text)
             .filter(|range| self.is_vim_command_target(range.start))
-            .map(|range| range.start)
-            .min_by_key(|&pos| match query.direction {
-                SearchDirection::Forward => (pos <= origin, pos),
-                SearchDirection::Backward => (pos >= origin, usize::MAX - pos),
-            });
+            .map(|range| range.start);
+        let order = |&pos: &usize| match query.direction {
+            SearchDirection::Forward => (pos <= origin, pos),
+            SearchDirection::Backward => (pos >= origin, usize::MAX - pos),
+        };
+        let target = if count == 1 {
+            targets.min_by_key(order)
+        } else {
+            let mut targets: Vec<_> = targets.collect();
+            targets.sort_unstable_by_key(order);
+            (!targets.is_empty()).then(|| targets[(count - 1) % targets.len()])
+        };
         let Some(target) = target else {
             return false;
         };

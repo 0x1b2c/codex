@@ -546,6 +546,7 @@ impl TextArea {
     }
 
     pub(super) fn handle_vim_pending_command(&mut self, pending: VimPending, event: KeyEvent) {
+        let count = self.vim_count.take().unwrap_or(1);
         match pending {
             VimPending::Replace => {
                 if let Some(ch) = vim_command_char(event)
@@ -570,7 +571,7 @@ impl TextArea {
                             }));
                         }
                         Some(VimOperator::Yank) | None => {
-                            self.find_vim_character(motion, operator, ch);
+                            self.find_vim_character_count(motion, operator, ch, count);
                         }
                     }
                 }
@@ -589,6 +590,16 @@ impl TextArea {
         operator: Option<VimOperator>,
         target: char,
     ) -> bool {
+        self.find_vim_character_count(motion, operator, target, 1)
+    }
+
+    fn find_vim_character_count(
+        &mut self,
+        motion: VimFindMotion,
+        operator: Option<VimOperator>,
+        target: char,
+        count: usize,
+    ) -> bool {
         let origin = self.cursor_pos;
         let found = match motion {
             VimFindMotion::Forward | VimFindMotion::TillForward => {
@@ -599,9 +610,10 @@ impl TextArea {
                 let start = self.next_atomic_boundary(origin);
                 self.text[start..line_end]
                     .grapheme_indices(/*is_extended*/ true)
-                    .find(|(offset, grapheme)| {
+                    .filter(|(offset, grapheme)| {
                         grapheme.starts_with(target) && self.is_vim_command_target(start + offset)
                     })
+                    .nth(count - 1)
                     .map(|(offset, grapheme)| start + offset..start + offset + grapheme.len())
             }
             VimFindMotion::Backward | VimFindMotion::TillBackward => {
@@ -609,10 +621,11 @@ impl TextArea {
                 self.text[line_start..origin]
                     .grapheme_indices(/*is_extended*/ true)
                     .rev()
-                    .find(|(offset, grapheme)| {
+                    .filter(|(offset, grapheme)| {
                         grapheme.starts_with(target)
                             && self.is_vim_command_target(line_start + offset)
                     })
+                    .nth(count - 1)
                     .map(|(offset, grapheme)| {
                         let start = line_start + offset;
                         start..start + grapheme.len()

@@ -49,6 +49,48 @@ fn ctrl_r(composer: &mut ChatComposer) {
 }
 
 #[test]
+fn counted_navigation_and_cancellation_preserve_redo_without_snapshots() {
+    let mut composer = vim_composer("one two three four");
+    keys(&mut composer, "x");
+    keys(&mut composer, "u");
+    keys(&mut composer, "2w");
+    assert_eq!(composer.cursor(), 8);
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    keys(&mut composer, "3");
+    escape(&mut composer);
+    assert!(!composer.draft.textarea.is_vim_operator_pending());
+    assert!(composer.vim_history.pending.is_none());
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "ne two three four");
+}
+
+#[test]
+fn counted_jump_top_keeps_its_prefix_through_the_composer_chord() {
+    let mut composer = vim_composer("one\ntwo\n  three\nfour");
+    keys(&mut composer, "3");
+    let runtime = RuntimeKeymap::defaults();
+    let mut matcher = crate::keymap::KeyChordMatcher::default();
+    let g = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE);
+    assert!(matches!(
+        matcher.advance(g, &runtime.chords, composer.keymap_contexts()),
+        crate::keymap::KeyChordMatch::Pending(_)
+    ));
+    assert!(composer.draft.textarea.is_vim_operator_pending());
+    let crate::keymap::KeyChordMatch::Completed(event) =
+        matcher.advance(g, &runtime.chords, composer.keymap_contexts())
+    else {
+        panic!("gg must complete the jump while a numeric prefix is pending");
+    };
+    let _ = composer.handle_key_event(event);
+    assert_eq!(composer.cursor(), "one\ntwo\n  ".len());
+    assert!(!composer.draft.textarea.is_vim_operator_pending());
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+}
+
+#[test]
 fn undo_and_redo_group_complete_vim_edits() {
     for (original, command, edited) in [
         ("one two", "cwX", "X two"),

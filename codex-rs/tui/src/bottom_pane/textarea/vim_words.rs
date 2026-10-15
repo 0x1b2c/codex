@@ -97,7 +97,7 @@ impl TextArea {
         next_word.map(|range| whitespace.start..range.end)
     }
 
-    fn vim_word_ranges(&self, kind: VimWordKind) -> Vec<Range<usize>> {
+    pub(super) fn vim_word_ranges(&self, kind: VimWordKind) -> Vec<Range<usize>> {
         let mut ranges: Vec<Range<usize>> = Vec::new();
         let mut previous = Class::Space;
         let mut start = 0;
