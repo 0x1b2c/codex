@@ -252,6 +252,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) change_to_line_end: Vec<KeyBinding>,
     pub(crate) yank_line: Vec<KeyBinding>,
     pub(crate) paste_after: Vec<KeyBinding>,
+    pub(crate) paste_before: Vec<KeyBinding>,
     pub(crate) start_delete_operator: Vec<KeyBinding>,
     pub(crate) start_yank_operator: Vec<KeyBinding>,
     pub(crate) start_change_operator: Vec<KeyBinding>,
@@ -914,6 +915,7 @@ impl RuntimeKeymap {
             change_to_line_end: resolve_local!(keymap, defaults, vim_normal, change_to_line_end),
             yank_line: resolve_local!(keymap, defaults, vim_normal, yank_line),
             paste_after: resolve_local!(keymap, defaults, vim_normal, paste_after),
+            paste_before: resolve_local!(keymap, defaults, vim_normal, paste_before),
             start_delete_operator: resolve_local!(
                 keymap,
                 defaults,
@@ -1086,6 +1088,10 @@ impl RuntimeKeymap {
                 vim_normal.paste_after.as_slice(),
             ),
             (
+                keymap.vim_normal.paste_before.as_ref(),
+                vim_normal.paste_before.as_slice(),
+            ),
+            (
                 keymap.vim_normal.start_delete_operator.as_ref(),
                 vim_normal.start_delete_operator.as_slice(),
             ),
@@ -1145,6 +1151,10 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.substitute_line.as_ref(),
                 &mut vim_normal.substitute_line,
+            ),
+            (
+                keymap.vim_normal.paste_before.as_ref(),
+                &mut vim_normal.paste_before,
             ),
         ] {
             if configured.is_none() {
@@ -2027,6 +2037,10 @@ impl RuntimeKeymap {
                 ],
                 yank_line: default_bindings![shift(KeyCode::Char('y')), plain(KeyCode::Char('Y'))],
                 paste_after: default_bindings![plain(KeyCode::Char('p'))],
+                paste_before: default_bindings![
+                    shift(KeyCode::Char('p')),
+                    plain(KeyCode::Char('P'))
+                ],
                 start_delete_operator: default_bindings![plain(KeyCode::Char('d'))],
                 start_yank_operator: default_bindings![plain(KeyCode::Char('y'))],
                 start_change_operator: default_bindings![plain(KeyCode::Char('c'))],
@@ -3293,6 +3307,31 @@ mod tests {
         keymap.chat.increase_reasoning_effort = Some(one("shift-up"));
 
         expect_conflict(&keymap, "chat.increase_reasoning_effort", "editor.move_up");
+    }
+
+    #[test]
+    fn paste_before_defaults_remap_and_yield_to_explicit_legacy_bindings() {
+        let defaults = RuntimeKeymap::defaults();
+        assert_eq!(
+            defaults.vim_normal.paste_before,
+            vec![
+                key_hint::shift(KeyCode::Char('p')),
+                key_hint::plain(KeyCode::Char('P'))
+            ]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.paste_before = Some(one("2"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("paste before should remap");
+        assert_eq!(
+            runtime.vim_normal.paste_before,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_left = Some(one("P"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("explicit binding should win");
+        assert!(runtime.vim_normal.paste_before.is_empty());
+        config.vim_normal.paste_before = Some(one("P"));
+        expect_conflict(&config, "move_left", "paste_before");
     }
 
     #[test]

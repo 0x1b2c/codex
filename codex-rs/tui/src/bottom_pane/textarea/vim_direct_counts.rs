@@ -65,6 +65,10 @@ impl TextArea {
             self.start_vim_edit(VimAction::PasteAfter { count });
             return true;
         }
+        if keys.paste_before.is_pressed(event) {
+            self.start_vim_edit(VimAction::PasteBefore { count });
+            return true;
+        }
         if keys.repeat_last_change.is_pressed(event) {
             self.repeat_vim_change(Some(count));
             return true;
@@ -81,6 +85,7 @@ impl TextArea {
             || keys.delete_to_line_end.is_pressed(event)
             || keys.change_to_line_end.is_pressed(event)
             || keys.paste_after.is_pressed(event)
+            || keys.paste_before.is_pressed(event)
             || keys.repeat_last_change.is_pressed(event)
     }
 
@@ -125,7 +130,7 @@ impl TextArea {
         true
     }
 
-    pub(super) fn paste_vim_after(&mut self, count: usize) -> bool {
+    pub(super) fn paste_vim(&mut self, count: usize, before: bool) -> bool {
         if self.kill_buffer.is_empty() {
             return false;
         }
@@ -154,8 +159,14 @@ impl TextArea {
         let mut text = unit.repeat(count);
         if linewise {
             let eol = self.end_of_current_line();
-            let insert_at = if eol < self.text.len() { eol + 1 } else { eol };
-            let start = if eol < self.text.len() {
+            let insert_at = if before {
+                self.beginning_of_current_line()
+            } else if eol < self.text.len() {
+                eol + 1
+            } else {
+                eol
+            };
+            let start = if before || eol < self.text.len() {
                 insert_at
             } else {
                 // Move exactly one terminal newline before the pasted lines, retaining blanks.
@@ -170,7 +181,7 @@ impl TextArea {
                     .min(self.vim_line_end_cursor()),
             );
         } else {
-            let insert_at = if self.cursor_pos < self.end_of_current_line() {
+            let insert_at = if !before && self.cursor_pos < self.end_of_current_line() {
                 self.next_atomic_boundary(self.cursor_pos)
             } else {
                 self.cursor_pos

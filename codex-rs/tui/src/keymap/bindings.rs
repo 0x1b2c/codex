@@ -360,6 +360,7 @@ define_runtime_action_bindings! {
         change_to_line_end,
         yank_line,
         paste_after,
+        paste_before,
         start_delete_operator,
         start_yank_operator,
         start_change_operator,

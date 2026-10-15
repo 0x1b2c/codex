@@ -130,6 +130,157 @@ fn counted_paste_places_cursor_like_vim_for_character_and_line_buffers() {
 }
 
 #[test]
+fn paste_before_inserts_characterwise_and_linewise_buffers_at_vim_boundaries() {
+    for (text, at, buffer, kind, expected, cursor) in [
+        ("abc", 1, "xy", KillBufferKind::Characterwise, "axybc", 2),
+        (
+            "abc",
+            1,
+            "x\ny",
+            KillBufferKind::Characterwise,
+            "ax\nybc",
+            1,
+        ),
+        ("abc", 1, "xy", KillBufferKind::Linewise, "xy\nabc", 0),
+        (
+            "abc\ndef",
+            5,
+            "  xy\n",
+            KillBufferKind::Linewise,
+            "abc\n  xy\ndef",
+            6,
+        ),
+        ("abc", 0, "  \n", KillBufferKind::Linewise, "  \nabc", 1),
+        ("abc", 0, "\n\n", KillBufferKind::Linewise, "\n\nabc", 0),
+        ("", 0, "xy", KillBufferKind::Characterwise, "xy", 1),
+        ("", 0, "xy\n", KillBufferKind::Linewise, "xy\n", 0),
+        (
+            "\nnext",
+            0,
+            "xy",
+            KillBufferKind::Characterwise,
+            "xy\nnext",
+            1,
+        ),
+        (
+            "\nnext",
+            0,
+            "xy\n",
+            KillBufferKind::Linewise,
+            "xy\n\nnext",
+            0,
+        ),
+        ("abc\n", 4, "xy\n", KillBufferKind::Linewise, "abc\nxy\n", 4),
+    ] {
+        let mut t = textarea(text, at);
+        t.store_kill_buffer(buffer.to_owned(), kind);
+        keys(&mut t, "P");
+        assert_eq!(t.text(), expected, "{text:?} with {buffer:?}");
+        assert_eq!(t.cursor(), cursor, "{text:?} with {buffer:?}");
+        assert_eq!((t.kill_buffer.as_str(), t.kill_buffer_kind), (buffer, kind));
+        assert!(t.is_vim_normal_mode());
+    }
+    for kind in [KillBufferKind::Characterwise, KillBufferKind::Linewise] {
+        let mut t = textarea("abc", 1);
+        t.store_kill_buffer(String::new(), kind);
+        keys(&mut t, "3P");
+        assert_eq!((t.text(), t.cursor()), ("abc", 1));
+        assert!(t.vim_commands.last_change.is_empty());
+    }
+}
+
+#[test]
+fn paste_before_preserves_graphemes_atomic_elements_and_shift_events() {
+    let mut t = textarea("e\u{301}👩‍💻", 0);
+    t.set_cursor(t.text().len());
+    t.insert_element("<attachment>");
+    t.insert_str("z");
+    let at = "e\u{301}👩‍💻".len();
+    t.set_cursor(at);
+    t.store_kill_buffer("e\u{301}👩‍💻".to_owned(), KillBufferKind::Characterwise);
+    t.input(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::SHIFT));
+    assert_eq!(t.text(), "e\u{301}👩‍💻e\u{301}👩‍💻<attachment>z");
+    assert_eq!(t.cursor(), at + "e\u{301}".len());
+    assert_eq!(t.element_payloads(), vec!["<attachment>"]);
+    keys(&mut t, "l");
+    assert_eq!(t.cursor(), at * 2);
+    keys(&mut t, "l");
+    assert_eq!(t.cursor(), at * 2 + "<attachment>".len());
+}
+
+#[test]
+fn paste_before_retains_counts_for_dot_and_replaces_them_with_dot_prefixes() {
+    let mut t = textarea("abc", 1);
+    t.store_kill_buffer("X".to_owned(), KillBufferKind::Characterwise);
+    keys(&mut t, "2P.");
+    assert_eq!((t.text(), t.cursor()), ("aXXXXbc", 3));
+    keys(&mut t, "3.");
+    assert_eq!((t.text(), t.cursor()), ("aXXXXXXXbc", 5));
+    keys(&mut t, ".");
+    assert_eq!((t.text(), t.cursor()), ("aXXXXXXXXXXbc", 7));
+    let mut t = textarea("abc", 1);
+    t.store_kill_buffer(" x\n".to_owned(), KillBufferKind::Linewise);
+    keys(&mut t, "2P.");
+    assert_eq!(t.text(), " x\n x\n x\n x\nabc");
+    assert_eq!(t.cursor(), 1);
+    keys(&mut t, "1.");
+    assert_eq!(t.text(), " x\n x\n x\n x\n x\nabc");
+    assert_eq!(
+        (t.kill_buffer.as_str(), t.kill_buffer_kind),
+        (" x\n", KillBufferKind::Linewise)
+    );
+    let mut t = textarea("abc", 1);
+    t.store_kill_buffer("x\ny".to_owned(), KillBufferKind::Characterwise);
+    keys(&mut t, "3P");
+    assert_eq!((t.text(), t.cursor()), ("ax\nyx\nyx\nybc", 1));
+}
+
+#[test]
+fn paste_before_rejects_oversized_counts_without_replacing_the_last_change() {
+    use codex_protocol::user_input::MAX_USER_INPUT_TEXT_CHARS;
+
+    for kind in [KillBufferKind::Characterwise, KillBufferKind::Linewise] {
+        let mut t = textarea("abc", 0);
+        t.store_kill_buffer("X".to_owned(), kind);
+        keys(&mut t, "P");
+        let original = t.text().to_owned();
+        let cursor = t.cursor();
+        for command in [
+            "999999999999999999999999999999999999999P".to_owned(),
+            format!("{MAX_USER_INPUT_TEXT_CHARS}P"),
+            "999999999999999999999999999999999999999.".to_owned(),
+        ] {
+            keys(&mut t, &command);
+            assert_eq!((t.text(), t.cursor()), (original.as_str(), cursor));
+            assert_eq!((t.kill_buffer.as_str(), t.kill_buffer_kind), ("X", kind));
+        }
+        keys(&mut t, ".");
+        assert_eq!(
+            t.text(),
+            if kind == KillBufferKind::Linewise {
+                "X\nX\nabc"
+            } else {
+                "XXabc"
+            }
+        );
+    }
+}
+
+#[test]
+fn paste_before_remapped_to_a_digit_wins_over_numeric_prefixes() {
+    let mut t = textarea("abc", 1);
+    t.store_kill_buffer("X".to_owned(), KillBufferKind::Characterwise);
+    t.vim_normal_keymap.paste_before = vec![crate::key_hint::plain(KeyCode::Char('2'))];
+    keys(&mut t, "P");
+    assert_eq!(t.text(), "abc");
+    keys(&mut t, "2");
+    assert_eq!(t.text(), "aXbc");
+    assert!(!t.is_vim_operator_pending());
+    keys(&mut t, "32");
+    assert_eq!(t.text(), "aXXXXbc");
+}
+
+#[test]
 fn counted_paste_and_replace_reject_impossible_allocations_without_changes() {
     let mut t = textarea("abc", 0);
     t.store_kill_buffer("xy".to_owned(), KillBufferKind::Characterwise);

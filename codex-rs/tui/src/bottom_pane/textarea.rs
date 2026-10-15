@@ -206,7 +206,7 @@ impl TextAreaState {
 enum KillBufferKind {
     /// Characterwise kills and yanks paste at the cursor.
     Characterwise,
-    /// Linewise kills and yanks paste as whole lines below the cursor line.
+    /// Linewise kills and yanks paste as whole lines above or below the cursor line.
     Linewise,
 }
 
@@ -985,6 +985,10 @@ impl TextArea {
         }
         if self.vim_normal_keymap.paste_after.is_pressed(event) {
             self.start_vim_edit(VimAction::PasteAfter { count: 1 });
+            return;
+        }
+        if self.vim_normal_keymap.paste_before.is_pressed(event) {
+            self.start_vim_edit(VimAction::PasteBefore { count: 1 });
             return;
         }
         if self

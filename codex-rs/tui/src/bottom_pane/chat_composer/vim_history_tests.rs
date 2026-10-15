@@ -902,6 +902,38 @@ fn counted_direct_edits_and_insertions_are_one_undo_and_replay_the_original_coun
 }
 
 #[test]
+fn counted_paste_before_and_dot_each_form_one_undo_and_redo_transaction() {
+    for (yank, pasted, repeated) in [
+        ("yl", "aaaabc", "aaaaaabc"),
+        ("Y", "abc\nabc\nabc\nabc", "abc\nabc\nabc\nabc\nabc\nabc"),
+    ] {
+        let mut composer = vim_composer("abc");
+        keys(&mut composer, yank);
+        keys(&mut composer, "3P");
+        assert_eq!(composer.current_text(), pasted);
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u");
+        assert_eq!(
+            (composer.current_text(), composer.cursor()),
+            ("abc".to_owned(), 0)
+        );
+        keys(&mut composer, "999999999999999999999999999999999999999P");
+        assert_eq!(composer.current_text(), "abc");
+        assert!(composer.vim_history.pending.is_none());
+        assert_eq!(composer.vim_history.redo.len(), 1);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), pasted);
+        keys(&mut composer, "2.");
+        assert_eq!(composer.current_text(), repeated);
+        assert_eq!(composer.vim_history.undo.len(), 2);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), pasted);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), repeated);
+    }
+}
+
+#[test]
 fn counted_text_object_changes_share_one_undo_with_the_whole_insertion() {
     let mut composer = vim_composer("one two three four five six");
     keys(&mut composer, "c3i");
