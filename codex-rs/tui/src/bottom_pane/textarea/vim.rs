@@ -151,6 +151,9 @@ impl TextArea {
         scope: VimTextObjectScope,
         kind: VimWordKind,
     ) -> Option<Range<usize>> {
+        if let Some(whitespace) = self.vim_whitespace_range() {
+            return self.vim_whitespace_text_object_range(whitespace, scope, kind);
+        }
         let inner = self.vim_word_range(kind)?;
         Some(match scope {
             VimTextObjectScope::Inner => inner,

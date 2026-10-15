@@ -218,3 +218,144 @@ fn vim_atomic_elements_form_words_separate_from_adjacent_punctuation() {
         ("中文，！后续", Vec::<String>::new())
     );
 }
+
+#[test]
+fn vim_inner_word_objects_select_the_current_whitespace_run() {
+    for (text, cursors, expected) in [
+        ("one   two", vec![3, 4, 5], "   "),
+        (" \t two", vec![0, 1, 2], " \t "),
+        ("one   ", vec![3, 4, 5], "   "),
+        ("   ", vec![0, 1, 2], "   "),
+        ("one\n  two", vec![4, 5], "  "),
+        ("one  \n  two", vec![3, 4], "  "),
+    ] {
+        for cursor in cursors {
+            for command in ["yiw", "yiW"] {
+                let mut t = textarea(text);
+                t.set_cursor(cursor);
+                keys(&mut t, command);
+                assert_eq!(t.kill_buffer, expected, "{command} at {cursor} in {text:?}");
+                assert_eq!(t.text(), text);
+            }
+        }
+    }
+}
+
+#[test]
+fn vim_around_word_objects_include_whitespace_and_the_next_word() {
+    for (text, cursor, word, big_word) in [
+        ("one   two!  three", 3, "   two", "   two!"),
+        ("one   two!  three", 4, "   two", "   two!"),
+        ("one   two!  three", 5, "   two", "   two!"),
+        ("   !two", 0, "   !", "   !two"),
+        ("one  \n  two!", 4, "  \n  two", "  \n  two!"),
+        ("one\n\ntwo!", 4, "\ntwo", "\ntwo!"),
+        ("one  \n\ntwo", 3, "  \n", "  \n"),
+        ("one\n\n\ntwo", 4, "\n", "\n"),
+    ] {
+        for (command, expected) in [("yaw", word), ("yaW", big_word)] {
+            let mut t = textarea(text);
+            t.set_cursor(cursor);
+            keys(&mut t, command);
+            assert_eq!(t.kill_buffer, expected, "{command} at {cursor} in {text:?}");
+            assert_eq!(t.text(), text);
+        }
+    }
+}
+
+#[test]
+fn vim_around_trailing_whitespace_does_not_edit_or_replace_the_register() {
+    for (text, cursor) in [("one   ", 4), ("   ", 1), ("one\n  ", 4)] {
+        for command in ["daw", "daW", "caw", "caW", "yaw", "yaW"] {
+            let mut t = textarea(text);
+            t.kill_buffer = "keep".to_owned();
+            t.set_cursor(cursor);
+            keys(&mut t, command);
+            assert_eq!(
+                (t.text(), t.kill_buffer.as_str(), t.vim_mode_label()),
+                (text, "keep", Some("Normal")),
+                "{command} at {cursor} in {text:?}"
+            );
+        }
+    }
+    for command in ["diw", "diW", "ciw", "ciW", "yiw", "yiW"] {
+        let mut t = textarea("one\n\ntwo");
+        t.kill_buffer = "keep".to_owned();
+        t.set_cursor(/*pos*/ 4);
+        keys(&mut t, command);
+        assert_eq!((t.text(), t.kill_buffer.as_str()), ("one\n\ntwo", "keep"));
+        assert_eq!(t.vim_mode_label(), Some("Normal"));
+    }
+}
+
+#[test]
+fn vim_whitespace_edits_repeat_the_resolved_text_object() {
+    let mut t = textarea("one   two  three");
+    t.set_cursor(/*pos*/ 4);
+    keys(&mut t, "diw");
+    t.set_cursor(/*pos*/ 6);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "onetwothree");
+
+    let mut t = textarea("one   two  three");
+    t.set_cursor(/*pos*/ 4);
+    keys(&mut t, "ciWX\x1b");
+    t.set_cursor(/*pos*/ 7);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "oneXtwoXthree");
+
+    let mut t = textarea("one   two!  three");
+    t.set_cursor(/*pos*/ 4);
+    keys(&mut t, "daW");
+    insta::assert_snapshot!(format!("{}|{}", &t.text()[..t.cursor()], &t.text()[t.cursor()..]), @"one|  three");
+}
+
+#[test]
+fn vim_delete_change_and_yank_share_whitespace_text_object_ranges() {
+    for (object, killed, remaining) in [
+        ("iw", "   ", "onetwo!  three"),
+        ("iW", "   ", "onetwo!  three"),
+        ("aw", "   two", "one!  three"),
+        ("aW", "   two!", "one  three"),
+    ] {
+        for operator in ['d', 'c', 'y'] {
+            let mut t = textarea("one   two!  three");
+            t.set_cursor(/*pos*/ 4);
+            keys(&mut t, &format!("{operator}{object}"));
+            assert_eq!(t.kill_buffer, killed);
+            assert_eq!(
+                t.text(),
+                if operator == 'y' {
+                    "one   two!  three"
+                } else {
+                    remaining
+                }
+            );
+            assert_eq!(
+                t.vim_mode_label(),
+                Some(if operator == 'c' { "Insert" } else { "Normal" })
+            );
+        }
+    }
+}
+
+#[test]
+fn vim_whitespace_objects_preserve_graphemes_and_atomic_elements() {
+    let mut t = textarea("  e\u{301}👩‍💻 next");
+    keys(&mut t, "yaw");
+    assert_eq!(t.kill_buffer, "  e\u{301}");
+    keys(&mut t, "yaW");
+    assert_eq!(t.kill_buffer, "  e\u{301}👩‍💻");
+
+    let mut t = textarea("  ");
+    t.set_cursor(t.text().len());
+    t.insert_element("<image with spaces>");
+    t.insert_str(" next");
+    t.set_cursor(/*pos*/ 1);
+    keys(&mut t, "daw");
+    assert_eq!(
+        (t.text(), t.kill_buffer.as_str()),
+        (" next", "  <image with spaces>")
+    );
+    assert!(t.element_payloads().is_empty());
+}
