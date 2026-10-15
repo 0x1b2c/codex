@@ -773,3 +773,19 @@ fn external_editor_import_preserves_replace_backspace_recovery() {
         ("bc", Some("Replace"))
     );
 }
+
+#[test]
+fn chinese_word_changes_and_big_word_replay_remain_undoable() {
+    for command in ["cw", "cW"] {
+        let mut composer = vim_composer("修改这里 保留那里");
+        keys(&mut composer, command);
+        keys(&mut composer, "X");
+        escape(&mut composer);
+        keys(&mut composer, "W.");
+        assert_eq!(composer.current_text(), "X X");
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), "X 保留那里");
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), "X X");
+    }
+}

@@ -59,6 +59,7 @@ mod single_line;
 mod vim;
 mod vim_commands;
 mod vim_search;
+mod vim_words;
 mod wrapping;
 
 use self::vim::VimMode;
@@ -72,6 +73,7 @@ use self::vim_commands::VimCommandState;
 use self::vim_commands::VimEditTarget;
 use self::vim_commands::VimInsertPosition;
 pub(crate) use self::vim_commands::VimPersistentState;
+use self::vim_words::VimWordKind;
 pub(crate) use editing::EditTarget;
 
 const WORD_SEPARATORS: &str = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?";
@@ -874,15 +876,35 @@ impl TextArea {
             return;
         }
         if self.vim_normal_keymap.move_word_forward.is_pressed(event) {
-            self.set_cursor(self.beginning_of_next_word());
+            self.set_cursor(self.vim_next_word_start(VimWordKind::Word));
             return;
         }
         if self.vim_normal_keymap.move_word_backward.is_pressed(event) {
-            self.set_cursor(self.beginning_of_previous_word());
+            self.set_cursor(self.vim_previous_word_start(VimWordKind::Word));
             return;
         }
         if self.vim_normal_keymap.move_word_end.is_pressed(event) {
-            self.set_cursor(self.vim_word_end_cursor());
+            self.set_cursor(self.vim_word_end_cursor(VimWordKind::Word));
+            return;
+        }
+        if self
+            .vim_normal_keymap
+            .move_big_word_forward
+            .is_pressed(event)
+        {
+            self.set_cursor(self.vim_next_word_start(VimWordKind::BigWord));
+            return;
+        }
+        if self
+            .vim_normal_keymap
+            .move_big_word_backward
+            .is_pressed(event)
+        {
+            self.set_cursor(self.vim_previous_word_start(VimWordKind::BigWord));
+            return;
+        }
+        if self.vim_normal_keymap.move_big_word_end.is_pressed(event) {
+            self.set_cursor(self.vim_word_end_cursor(VimWordKind::BigWord));
             return;
         }
         if self.vim_normal_keymap.move_line_start.is_pressed(event) {
@@ -1053,6 +1075,27 @@ impl TextArea {
         if self.vim_operator_keymap.motion_word_end.is_pressed(event) {
             return Some(VimMotion::WordEnd);
         }
+        if self
+            .vim_operator_keymap
+            .motion_big_word_forward
+            .is_pressed(event)
+        {
+            return Some(VimMotion::BigWordForward);
+        }
+        if self
+            .vim_operator_keymap
+            .motion_big_word_backward
+            .is_pressed(event)
+        {
+            return Some(VimMotion::BigWordBackward);
+        }
+        if self
+            .vim_operator_keymap
+            .motion_big_word_end
+            .is_pressed(event)
+        {
+            return Some(VimMotion::BigWordEnd);
+        }
         if self.vim_operator_keymap.motion_line_start.is_pressed(event) {
             return Some(VimMotion::LineStart);
         }
@@ -1063,15 +1106,23 @@ impl TextArea {
     }
 
     fn apply_vim_operator(&mut self, op: VimOperator, motion: VimMotion) {
-        if op == VimOperator::Change && motion == VimMotion::WordForward {
+        if op == VimOperator::Change
+            && matches!(motion, VimMotion::WordForward | VimMotion::BigWordForward)
+        {
+            let kind = if motion == VimMotion::BigWordForward {
+                VimWordKind::BigWord
+            } else {
+                VimWordKind::Word
+            };
             let target = if self.text[self.cursor_pos..]
                 .chars()
                 .next()
                 .is_some_and(|ch| !ch.is_whitespace())
             {
-                self.end_of_next_word()
+                self.vim_word_range(kind)
+                    .map_or(self.cursor_pos, |range| range.end)
             } else {
-                self.beginning_of_next_word()
+                self.vim_next_word_start(kind)
                     .min(self.end_of_current_line())
             };
             if target > self.cursor_pos {
@@ -1164,6 +1215,9 @@ impl TextArea {
             | VimMotion::WordForward
             | VimMotion::WordBackward
             | VimMotion::WordEnd
+            | VimMotion::BigWordForward
+            | VimMotion::BigWordBackward
+            | VimMotion::BigWordEnd
             | VimMotion::LineStart
             | VimMotion::LineEnd => return None,
         };
@@ -1178,9 +1232,20 @@ impl TextArea {
             VimMotion::Right => self.move_cursor_right(),
             VimMotion::Up => self.move_cursor_up(),
             VimMotion::Down => self.move_cursor_down(),
-            VimMotion::WordForward => self.set_cursor(self.beginning_of_next_word()),
-            VimMotion::WordBackward => self.set_cursor(self.beginning_of_previous_word()),
-            VimMotion::WordEnd => self.set_cursor(self.vim_word_end_exclusive()),
+            VimMotion::WordForward => self.set_cursor(self.vim_next_word_start(VimWordKind::Word)),
+            VimMotion::WordBackward => {
+                self.set_cursor(self.vim_previous_word_start(VimWordKind::Word))
+            }
+            VimMotion::WordEnd => self.set_cursor(self.vim_word_end_exclusive(VimWordKind::Word)),
+            VimMotion::BigWordForward => {
+                self.set_cursor(self.vim_next_word_start(VimWordKind::BigWord))
+            }
+            VimMotion::BigWordBackward => {
+                self.set_cursor(self.vim_previous_word_start(VimWordKind::BigWord))
+            }
+            VimMotion::BigWordEnd => {
+                self.set_cursor(self.vim_word_end_exclusive(VimWordKind::BigWord))
+            }
             VimMotion::LineStart => self.set_cursor(self.beginning_of_current_line()),
             VimMotion::LineEnd => self.set_cursor(self.end_of_current_line()),
         }
@@ -2030,29 +2095,6 @@ impl TextArea {
         }
 
         self.adjust_pos_out_of_elements(end, /*prefer_start*/ false)
-    }
-
-    fn vim_word_end_exclusive(&self) -> usize {
-        let end = self.end_of_next_word();
-        let target = if end > self.cursor_pos {
-            self.prev_atomic_boundary(end)
-        } else {
-            end
-        };
-        if target == self.cursor_pos && end < self.text.len() {
-            self.end_of_next_word_from(end)
-        } else {
-            end
-        }
-    }
-
-    fn vim_word_end_cursor(&self) -> usize {
-        let end = self.vim_word_end_exclusive();
-        if end > self.cursor_pos {
-            self.prev_atomic_boundary(end)
-        } else {
-            end
-        }
     }
 
     fn vim_line_end_cursor(&self) -> usize {

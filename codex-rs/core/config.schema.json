@@ -4837,6 +4837,9 @@
               "insert_line_start": null,
               "jump_bottom": null,
               "jump_top": null,
+              "move_big_word_backward": null,
+              "move_big_word_end": null,
+              "move_big_word_forward": null,
               "move_down": null,
               "move_left": null,
               "move_line_end": null,
@@ -4864,6 +4867,9 @@
             "vim_operator": {
               "cancel": null,
               "delete_line": null,
+              "motion_big_word_backward": null,
+              "motion_big_word_end": null,
+              "motion_big_word_forward": null,
               "motion_down": null,
               "motion_find_backward": null,
               "motion_find_forward": null,
@@ -5865,6 +5871,9 @@
             "insert_line_start": null,
             "jump_bottom": null,
             "jump_top": null,
+            "move_big_word_backward": null,
+            "move_big_word_end": null,
+            "move_big_word_forward": null,
             "move_down": null,
             "move_left": null,
             "move_line_end": null,
@@ -5899,6 +5908,9 @@
           "default": {
             "cancel": null,
             "delete_line": null,
+            "motion_big_word_backward": null,
+            "motion_big_word_end": null,
+            "motion_big_word_forward": null,
             "motion_down": null,
             "motion_find_backward": null,
             "motion_find_forward": null,
@@ -6288,6 +6300,30 @@
           ],
           "description": "Begin a jump to the first buffer line (`gg`)."
         },
+        "move_big_word_backward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to start of previous whitespace-delimited WORD (`B`)."
+        },
+        "move_big_word_end": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to end of current/next whitespace-delimited WORD (`E`)."
+        },
+        "move_big_word_forward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to start of next whitespace-delimited WORD (`W`)."
+        },
         "move_down": {
           "allOf": [
             {
@@ -6494,6 +6530,30 @@
             }
           ],
           "description": "Repeat delete operator to delete the whole line (`dd`)."
+        },
+        "motion_big_word_backward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Motion: to start of previous whitespace-delimited WORD (`B`)."
+        },
+        "motion_big_word_end": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Motion: to end of current/next whitespace-delimited WORD (`E`)."
+        },
+        "motion_big_word_forward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Motion: to start of next whitespace-delimited WORD (`W`)."
         },
         "motion_down": {
           "allOf": [

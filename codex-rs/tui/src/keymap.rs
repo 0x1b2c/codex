@@ -228,6 +228,9 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) move_word_forward: Vec<KeyBinding>,
     pub(crate) move_word_backward: Vec<KeyBinding>,
     pub(crate) move_word_end: Vec<KeyBinding>,
+    pub(crate) move_big_word_forward: Vec<KeyBinding>,
+    pub(crate) move_big_word_backward: Vec<KeyBinding>,
+    pub(crate) move_big_word_end: Vec<KeyBinding>,
     pub(crate) move_line_start: Vec<KeyBinding>,
     pub(crate) move_line_end: Vec<KeyBinding>,
     pub(crate) find_forward: Vec<KeyBinding>,
@@ -269,6 +272,9 @@ pub(crate) struct VimOperatorKeymap {
     pub(crate) motion_word_forward: Vec<KeyBinding>,
     pub(crate) motion_word_backward: Vec<KeyBinding>,
     pub(crate) motion_word_end: Vec<KeyBinding>,
+    pub(crate) motion_big_word_forward: Vec<KeyBinding>,
+    pub(crate) motion_big_word_backward: Vec<KeyBinding>,
+    pub(crate) motion_big_word_end: Vec<KeyBinding>,
     pub(crate) motion_line_start: Vec<KeyBinding>,
     pub(crate) motion_line_end: Vec<KeyBinding>,
     pub(crate) motion_find_forward: Vec<KeyBinding>,
@@ -861,6 +867,19 @@ impl RuntimeKeymap {
             move_word_forward: resolve_local!(keymap, defaults, vim_normal, move_word_forward),
             move_word_backward: resolve_local!(keymap, defaults, vim_normal, move_word_backward),
             move_word_end: resolve_local!(keymap, defaults, vim_normal, move_word_end),
+            move_big_word_forward: resolve_local!(
+                keymap,
+                defaults,
+                vim_normal,
+                move_big_word_forward
+            ),
+            move_big_word_backward: resolve_local!(
+                keymap,
+                defaults,
+                vim_normal,
+                move_big_word_backward
+            ),
+            move_big_word_end: resolve_local!(keymap, defaults, vim_normal, move_big_word_end),
             move_line_start: resolve_local!(keymap, defaults, vim_normal, move_line_start),
             move_line_end: resolve_local!(keymap, defaults, vim_normal, move_line_end),
             find_forward: resolve_local!(keymap, defaults, vim_normal, find_forward),
@@ -951,6 +970,18 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.move_word_end.as_ref(),
                 vim_normal.move_word_end.as_slice(),
+            ),
+            (
+                keymap.vim_normal.move_big_word_forward.as_ref(),
+                vim_normal.move_big_word_forward.as_slice(),
+            ),
+            (
+                keymap.vim_normal.move_big_word_backward.as_ref(),
+                vim_normal.move_big_word_backward.as_slice(),
+            ),
+            (
+                keymap.vim_normal.move_big_word_end.as_ref(),
+                vim_normal.move_big_word_end.as_slice(),
             ),
             (
                 keymap.vim_normal.move_line_start.as_ref(),
@@ -1120,6 +1151,24 @@ impl RuntimeKeymap {
                 motion_word_backward
             ),
             motion_word_end: resolve_local!(keymap, defaults, vim_operator, motion_word_end),
+            motion_big_word_forward: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_big_word_forward
+            ),
+            motion_big_word_backward: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_big_word_backward
+            ),
+            motion_big_word_end: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_big_word_end
+            ),
             motion_line_start: resolve_local!(keymap, defaults, vim_operator, motion_line_start),
             motion_line_end: resolve_local!(keymap, defaults, vim_operator, motion_line_end),
             motion_find_forward: resolve_local!(
@@ -1199,6 +1248,18 @@ impl RuntimeKeymap {
             (
                 keymap.vim_operator.motion_word_end.as_ref(),
                 vim_operator.motion_word_end.as_slice(),
+            ),
+            (
+                keymap.vim_operator.motion_big_word_forward.as_ref(),
+                vim_operator.motion_big_word_forward.as_slice(),
+            ),
+            (
+                keymap.vim_operator.motion_big_word_backward.as_ref(),
+                vim_operator.motion_big_word_backward.as_slice(),
+            ),
+            (
+                keymap.vim_operator.motion_big_word_end.as_ref(),
+                vim_operator.motion_big_word_end.as_slice(),
             ),
             (
                 keymap.vim_operator.motion_line_start.as_ref(),
@@ -1785,6 +1846,18 @@ impl RuntimeKeymap {
                 move_word_forward: default_bindings![plain(KeyCode::Char('w'))],
                 move_word_backward: default_bindings![plain(KeyCode::Char('b'))],
                 move_word_end: default_bindings![plain(KeyCode::Char('e'))],
+                move_big_word_forward: default_bindings![
+                    shift(KeyCode::Char('w')),
+                    plain(KeyCode::Char('W'))
+                ],
+                move_big_word_backward: default_bindings![
+                    shift(KeyCode::Char('b')),
+                    plain(KeyCode::Char('B'))
+                ],
+                move_big_word_end: default_bindings![
+                    shift(KeyCode::Char('e')),
+                    plain(KeyCode::Char('E'))
+                ],
                 move_line_start: default_bindings![plain(KeyCode::Char('0'))],
                 move_line_end: default_bindings![
                     plain(KeyCode::Char('$')),
@@ -1831,6 +1904,18 @@ impl RuntimeKeymap {
                 motion_word_forward: default_bindings![plain(KeyCode::Char('w'))],
                 motion_word_backward: default_bindings![plain(KeyCode::Char('b'))],
                 motion_word_end: default_bindings![plain(KeyCode::Char('e'))],
+                motion_big_word_forward: default_bindings![
+                    shift(KeyCode::Char('w')),
+                    plain(KeyCode::Char('W'))
+                ],
+                motion_big_word_backward: default_bindings![
+                    shift(KeyCode::Char('b')),
+                    plain(KeyCode::Char('B'))
+                ],
+                motion_big_word_end: default_bindings![
+                    shift(KeyCode::Char('e')),
+                    plain(KeyCode::Char('E'))
+                ],
                 motion_line_start: default_bindings![plain(KeyCode::Char('0'))],
                 motion_line_end: default_bindings![
                     plain(KeyCode::Char('$')),

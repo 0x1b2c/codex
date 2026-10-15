@@ -287,6 +287,12 @@ pub struct TuiVimNormalKeymap {
     pub move_word_backward: Option<KeybindingsSpec>,
     /// Move cursor to end of current/next word (`e`).
     pub move_word_end: Option<KeybindingsSpec>,
+    /// Move cursor to start of next whitespace-delimited WORD (`W`).
+    pub move_big_word_forward: Option<KeybindingsSpec>,
+    /// Move cursor to start of previous whitespace-delimited WORD (`B`).
+    pub move_big_word_backward: Option<KeybindingsSpec>,
+    /// Move cursor to end of current/next whitespace-delimited WORD (`E`).
+    pub move_big_word_end: Option<KeybindingsSpec>,
     /// Move cursor to start of line (`0`).
     pub move_line_start: Option<KeybindingsSpec>,
     /// Move cursor to end of line (`$`).
@@ -360,6 +366,12 @@ pub struct TuiVimOperatorKeymap {
     pub motion_word_backward: Option<KeybindingsSpec>,
     /// Motion: to end of current/next word (`e`).
     pub motion_word_end: Option<KeybindingsSpec>,
+    /// Motion: to start of next whitespace-delimited WORD (`W`).
+    pub motion_big_word_forward: Option<KeybindingsSpec>,
+    /// Motion: to start of previous whitespace-delimited WORD (`B`).
+    pub motion_big_word_backward: Option<KeybindingsSpec>,
+    /// Motion: to end of current/next whitespace-delimited WORD (`E`).
+    pub motion_big_word_end: Option<KeybindingsSpec>,
     /// Motion: to start of line (`0`).
     pub motion_line_start: Option<KeybindingsSpec>,
     /// Motion: to end of line (`$`).

@@ -1,5 +1,5 @@
 use super::TextArea;
-use super::split_word_pieces;
+use super::vim_words::VimWordKind;
 use crate::key_hint::KeyBindingListExt;
 use crossterm::event::KeyEvent;
 use std::ops::Range;
@@ -54,6 +54,9 @@ pub(super) enum VimMotion {
     WordForward,
     WordBackward,
     WordEnd,
+    BigWordForward,
+    BigWordBackward,
+    BigWordEnd,
     LineStart,
     LineEnd,
 }
@@ -132,8 +135,8 @@ impl TextArea {
         scope: VimTextObjectScope,
     ) -> Option<Range<usize>> {
         match object {
-            VimTextObject::Word => self.word_text_object_range(scope, /*big_word*/ false),
-            VimTextObject::BigWord => self.word_text_object_range(scope, /*big_word*/ true),
+            VimTextObject::Word => self.word_text_object_range(scope, VimWordKind::Word),
+            VimTextObject::BigWord => self.word_text_object_range(scope, VimWordKind::BigWord),
             VimTextObject::Parentheses => self.paired_text_object_range(scope, '(', ')'),
             VimTextObject::Brackets => self.paired_text_object_range(scope, '[', ']'),
             VimTextObject::Braces => self.paired_text_object_range(scope, '{', '}'),
@@ -146,70 +149,13 @@ impl TextArea {
     fn word_text_object_range(
         &self,
         scope: VimTextObjectScope,
-        big_word: bool,
+        kind: VimWordKind,
     ) -> Option<Range<usize>> {
-        let inner = if big_word {
-            self.big_word_range_at_cursor()?
-        } else {
-            self.small_word_range_at_cursor()?
-        };
+        let inner = self.vim_word_range(kind)?;
         Some(match scope {
             VimTextObjectScope::Inner => inner,
             VimTextObjectScope::Around => self.expand_word_around(inner),
         })
-    }
-
-    fn big_word_range_at_cursor(&self) -> Option<Range<usize>> {
-        self.non_ws_runs()
-            .into_iter()
-            .find(|range| self.cursor_overlaps_range(range) || self.cursor_is_at_range_end(range))
-    }
-
-    fn small_word_range_at_cursor(&self) -> Option<Range<usize>> {
-        for run in self.non_ws_runs() {
-            if !self.cursor_overlaps_range(&run) && !self.cursor_is_at_range_end(&run) {
-                continue;
-            }
-            let mut last_piece = None;
-            for (piece_start, piece) in split_word_pieces(&self.text[run.clone()]) {
-                let piece = run.start + piece_start..run.start + piece_start + piece.len();
-                if self.cursor_overlaps_range(&piece) {
-                    return Some(piece);
-                }
-                last_piece = Some(piece);
-            }
-            if self.cursor_is_at_range_end(&run) {
-                return last_piece.or(Some(run));
-            }
-            return Some(run);
-        }
-        None
-    }
-
-    fn non_ws_runs(&self) -> Vec<Range<usize>> {
-        let mut runs = Vec::new();
-        let mut start = None;
-        for (idx, ch) in self.text.char_indices() {
-            if ch.is_whitespace() {
-                if let Some(run_start) = start.take() {
-                    runs.push(run_start..idx);
-                }
-            } else if start.is_none() {
-                start = Some(idx);
-            }
-        }
-        if let Some(run_start) = start {
-            runs.push(run_start..self.text.len());
-        }
-        runs
-    }
-
-    fn cursor_overlaps_range(&self, range: &Range<usize>) -> bool {
-        range.start <= self.cursor_pos && self.cursor_pos < range.end
-    }
-
-    fn cursor_is_at_range_end(&self, range: &Range<usize>) -> bool {
-        range.start < range.end && self.cursor_pos == range.end
     }
 
     fn expand_word_around(&self, inner: Range<usize>) -> Range<usize> {
