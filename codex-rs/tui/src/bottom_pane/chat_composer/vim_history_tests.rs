@@ -936,3 +936,40 @@ fn counted_dot_is_one_undo_transaction_and_prefixes_preserve_redo() {
     ctrl_r(&mut composer);
     assert_eq!(composer.current_text(), "f g h");
 }
+
+#[test]
+fn character_search_repeats_preserve_redo_and_survive_undo() {
+    let mut composer = vim_composer("xa1a2a3a4a");
+    keys(&mut composer, "fad;");
+    assert_eq!(composer.current_text(), "x2a3a4a");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u;,");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    assert_eq!(composer.cursor(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "x2a3a4a");
+    keys(&mut composer, "u0;d;u");
+    assert_eq!(composer.current_text(), "xa1a2a3a4a");
+    assert_eq!(composer.vim_history.redo.len(), 1);
+}
+
+#[test]
+fn digit_bound_repeat_operator_creates_one_undo_transaction() {
+    let mut composer = vim_composer("xa1a2a3a4a");
+    let mut config = TuiKeymap::default();
+    config.vim_operator.motion_repeat_find =
+        Some(KeybindingsSpec::One(KeybindingSpec("2".to_owned())));
+    composer.set_keymap_bindings(&RuntimeKeymap::from_config(&config).unwrap());
+    keys(&mut composer, "fad2");
+    assert_eq!(composer.current_text(), "x2a3a4a");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "xa1a2a3a4a");
+    keys(&mut composer, "c2XY");
+    escape(&mut composer);
+    assert_eq!(composer.current_text(), "xXY2a3a4a");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "xa1a2a3a4a");
+}

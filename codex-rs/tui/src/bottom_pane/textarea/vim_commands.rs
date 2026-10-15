@@ -3,6 +3,8 @@
 //! `f`/`F` land on a matching grapheme; `t`/`T` stop just before/after it. Forward operator
 //! motions include the destination, while backward motions exclude the original cursor.
 //! All four motions share these boundaries for navigation, `c`/`d`/`y`, and semantic `.` replay.
+//! `;` and `,` reuse the explicit target and preserve its direction; a single till repeat
+//! skips an adjacent match so it can advance past the previous stopping point.
 
 use super::TextArea;
 use super::VimMode;
@@ -65,6 +67,10 @@ pub(super) enum VimEditTarget {
         motion: VimFindMotion,
         target: char,
     },
+    RepeatFind {
+        motion: VimFindMotion,
+        target: char,
+    },
     BufferJump {
         last: bool,
     },
@@ -103,6 +109,7 @@ pub(crate) struct VimCommandState {
     changed: bool,
     pub(super) replaying: bool,
     replace_steps: Vec<VimReplaceStep>,
+    pub(super) last_find: Option<(VimFindMotion, char)>,
 }
 
 #[derive(Debug)]
@@ -457,6 +464,11 @@ impl TextArea {
                             return false;
                         }
                     }
+                    VimEditTarget::RepeatFind { motion, target } => {
+                        if !self.repeat_vim_character_find(motion, Some(operator), target, 1) {
+                            return false;
+                        }
+                    }
                     VimEditTarget::BufferJump { last } => {
                         self.jump_to_vim_buffer_line(last, Some(operator));
                     }
@@ -492,6 +504,10 @@ impl TextArea {
     }
 
     pub(super) fn handle_vim_extra_command(&mut self, event: KeyEvent) -> bool {
+        if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ false) {
+            self.repeat_vim_find(reverse, None, 1);
+            return true;
+        }
         if self.vim_normal_keymap.enter_replace_mode.is_pressed(event) {
             self.start_vim_edit(VimAction::EnterReplaceMode);
             return true;
@@ -530,6 +546,10 @@ impl TextArea {
         operator: VimOperator,
         event: KeyEvent,
     ) -> bool {
+        if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ true) {
+            self.repeat_vim_find(reverse, Some(operator), 1);
+            return true;
+        }
         if self
             .vim_operator_keymap
             .motion_find_forward
@@ -591,6 +611,8 @@ impl TextArea {
             }
             VimPending::Find { motion, operator } => {
                 if let Some(ch) = vim_command_char(event) {
+                    // Vim remembers an explicit target even when no matching character exists.
+                    self.vim_commands.last_find = Some((motion, ch));
                     match operator {
                         Some(VimOperator::Delete) => {
                             self.start_vim_edit(VimAction::Delete(VimEditTarget::Counted {
@@ -634,7 +656,19 @@ impl TextArea {
         target: char,
         count: usize,
     ) -> bool {
+        self.find_vim_character_impl(motion, operator, target, count, /*repeated*/ false)
+    }
+
+    pub(super) fn find_vim_character_impl(
+        &mut self,
+        motion: VimFindMotion,
+        operator: Option<VimOperator>,
+        target: char,
+        count: usize,
+        repeated: bool,
+    ) -> bool {
         let origin = self.cursor_pos;
+        let skip_adjacent = repeated && count == 1;
         let found = match motion {
             VimFindMotion::Forward | VimFindMotion::TillForward => {
                 let line_end = self.end_of_current_line();
@@ -645,7 +679,11 @@ impl TextArea {
                 self.text[start..line_end]
                     .grapheme_indices(/*is_extended*/ true)
                     .filter(|(offset, grapheme)| {
-                        grapheme.starts_with(target) && self.is_vim_command_target(start + offset)
+                        grapheme.starts_with(target)
+                            && self.is_vim_command_target(start + offset)
+                            && !(skip_adjacent
+                                && motion == VimFindMotion::TillForward
+                                && *offset == 0)
                     })
                     .nth(count - 1)
                     .map(|(offset, grapheme)| start + offset..start + offset + grapheme.len())
@@ -658,6 +696,9 @@ impl TextArea {
                     .filter(|(offset, grapheme)| {
                         grapheme.starts_with(target)
                             && self.is_vim_command_target(line_start + offset)
+                            && !(skip_adjacent
+                                && motion == VimFindMotion::TillBackward
+                                && line_start + offset + grapheme.len() == origin)
                     })
                     .nth(count - 1)
                     .map(|(offset, grapheme)| {

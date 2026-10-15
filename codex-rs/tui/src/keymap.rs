@@ -237,6 +237,8 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) find_backward: Vec<KeyBinding>,
     pub(crate) till_forward: Vec<KeyBinding>,
     pub(crate) till_backward: Vec<KeyBinding>,
+    pub(crate) repeat_find: Vec<KeyBinding>,
+    pub(crate) reverse_find: Vec<KeyBinding>,
     pub(crate) jump_top: Vec<KeyBinding>,
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) delete_char: Vec<KeyBinding>,
@@ -281,6 +283,8 @@ pub(crate) struct VimOperatorKeymap {
     pub(crate) motion_find_backward: Vec<KeyBinding>,
     pub(crate) motion_till_forward: Vec<KeyBinding>,
     pub(crate) motion_till_backward: Vec<KeyBinding>,
+    pub(crate) motion_repeat_find: Vec<KeyBinding>,
+    pub(crate) motion_reverse_find: Vec<KeyBinding>,
     pub(crate) motion_jump_top: Vec<KeyBinding>,
     pub(crate) motion_jump_bottom: Vec<KeyBinding>,
     pub(crate) select_inner_text_object: Vec<KeyBinding>,
@@ -886,6 +890,8 @@ impl RuntimeKeymap {
             find_backward: resolve_local!(keymap, defaults, vim_normal, find_backward),
             till_forward: resolve_local!(keymap, defaults, vim_normal, till_forward),
             till_backward: resolve_local!(keymap, defaults, vim_normal, till_backward),
+            repeat_find: resolve_local!(keymap, defaults, vim_normal, repeat_find),
+            reverse_find: resolve_local!(keymap, defaults, vim_normal, reverse_find),
             jump_top: resolve_local!(keymap, defaults, vim_normal, jump_top),
             jump_bottom: resolve_local!(keymap, defaults, vim_normal, jump_bottom),
             delete_char: resolve_local!(keymap, defaults, vim_normal, delete_char),
@@ -1008,6 +1014,14 @@ impl RuntimeKeymap {
                 vim_normal.till_backward.as_slice(),
             ),
             (
+                keymap.vim_normal.repeat_find.as_ref(),
+                vim_normal.repeat_find.as_slice(),
+            ),
+            (
+                keymap.vim_normal.reverse_find.as_ref(),
+                vim_normal.reverse_find.as_slice(),
+            ),
+            (
                 keymap.vim_normal.jump_top.as_ref(),
                 vim_normal.jump_top.as_slice(),
             ),
@@ -1113,6 +1127,14 @@ impl RuntimeKeymap {
                 &mut vim_normal.till_backward,
             ),
             (
+                keymap.vim_normal.repeat_find.as_ref(),
+                &mut vim_normal.repeat_find,
+            ),
+            (
+                keymap.vim_normal.reverse_find.as_ref(),
+                &mut vim_normal.reverse_find,
+            ),
+            (
                 keymap.vim_normal.jump_top.as_ref(),
                 &mut vim_normal.jump_top,
             ),
@@ -1194,6 +1216,13 @@ impl RuntimeKeymap {
                 defaults,
                 vim_operator,
                 motion_till_backward
+            ),
+            motion_repeat_find: resolve_local!(keymap, defaults, vim_operator, motion_repeat_find),
+            motion_reverse_find: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_reverse_find
             ),
             motion_jump_top: resolve_local!(keymap, defaults, vim_operator, motion_jump_top),
             motion_jump_bottom: resolve_local!(keymap, defaults, vim_operator, motion_jump_bottom),
@@ -1286,6 +1315,14 @@ impl RuntimeKeymap {
                 vim_operator.motion_till_backward.as_slice(),
             ),
             (
+                keymap.vim_operator.motion_repeat_find.as_ref(),
+                vim_operator.motion_repeat_find.as_slice(),
+            ),
+            (
+                keymap.vim_operator.motion_reverse_find.as_ref(),
+                vim_operator.motion_reverse_find.as_slice(),
+            ),
+            (
                 keymap.vim_operator.motion_jump_top.as_ref(),
                 vim_operator.motion_jump_top.as_slice(),
             ),
@@ -1325,6 +1362,14 @@ impl RuntimeKeymap {
             (
                 keymap.vim_operator.motion_till_backward.as_ref(),
                 &mut vim_operator.motion_till_backward,
+            ),
+            (
+                keymap.vim_operator.motion_repeat_find.as_ref(),
+                &mut vim_operator.motion_repeat_find,
+            ),
+            (
+                keymap.vim_operator.motion_reverse_find.as_ref(),
+                &mut vim_operator.motion_reverse_find,
             ),
             (
                 keymap.vim_operator.motion_jump_top.as_ref(),
@@ -1867,6 +1912,8 @@ impl RuntimeKeymap {
                 find_backward: default_bindings![shift(KeyCode::Char('f'))],
                 till_forward: default_bindings![plain(KeyCode::Char('t'))],
                 till_backward: default_bindings![shift(KeyCode::Char('t'))],
+                repeat_find: default_bindings![plain(KeyCode::Char(';'))],
+                reverse_find: default_bindings![plain(KeyCode::Char(','))],
                 jump_top: default_bindings![],
                 jump_bottom: default_bindings![
                     shift(KeyCode::Char('g')),
@@ -1925,6 +1972,8 @@ impl RuntimeKeymap {
                 motion_find_backward: default_bindings![shift(KeyCode::Char('f'))],
                 motion_till_forward: default_bindings![plain(KeyCode::Char('t'))],
                 motion_till_backward: default_bindings![shift(KeyCode::Char('t'))],
+                motion_repeat_find: default_bindings![plain(KeyCode::Char(';'))],
+                motion_reverse_find: default_bindings![plain(KeyCode::Char(','))],
                 motion_jump_top: default_bindings![],
                 motion_jump_bottom: default_bindings![
                     shift(KeyCode::Char('g')),
@@ -4174,6 +4223,30 @@ mod tests {
             Some(key_hint::ctrl(KeyCode::Char('a')))
         );
         assert_eq!(primary_binding(&[]), None);
+    }
+
+    #[test]
+    fn character_search_repeats_support_rebinding_and_preserve_legacy_bindings() {
+        let mut keymap = TuiKeymap::default();
+        keymap.vim_normal.repeat_find = Some(one("2"));
+        keymap.vim_operator.motion_reverse_find = Some(one("3"));
+        let runtime = RuntimeKeymap::from_config(&keymap).expect("repeat bindings should parse");
+        assert_eq!(
+            runtime.vim_normal.repeat_find,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        assert_eq!(
+            runtime.vim_operator.motion_reverse_find,
+            vec![key_hint::plain(KeyCode::Char('3'))]
+        );
+        let mut keymap = TuiKeymap::default();
+        keymap.vim_normal.move_left = Some(one(";"));
+        keymap.vim_operator.motion_left = Some(one(","));
+        let runtime = RuntimeKeymap::from_config(&keymap).expect("legacy bindings should win");
+        assert!(runtime.vim_normal.repeat_find.is_empty());
+        assert!(runtime.vim_operator.motion_reverse_find.is_empty());
+        keymap.vim_normal.repeat_find = Some(one(";"));
+        expect_conflict(&keymap, "move_left", "repeat_find");
     }
 
     #[test]

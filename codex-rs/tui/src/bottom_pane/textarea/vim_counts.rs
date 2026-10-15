@@ -49,6 +49,8 @@ impl TextArea {
             &keys.find_backward,
             &keys.till_forward,
             &keys.till_backward,
+            &keys.repeat_find,
+            &keys.reverse_find,
             &keys.jump_top,
             &keys.jump_bottom,
             &keys.delete_char,
@@ -98,6 +100,10 @@ impl TextArea {
         if let Some(operator) = operator {
             self.vim_operator_count = Some(count);
             self.vim_pending = VimPending::Operator(operator);
+            return true;
+        }
+        if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ false) {
+            self.repeat_vim_find(reverse, None, count);
             return true;
         }
         if keys.find_forward.is_pressed(event)

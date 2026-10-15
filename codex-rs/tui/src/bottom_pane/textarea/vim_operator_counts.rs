@@ -19,7 +19,11 @@ impl TextArea {
     pub(super) fn handle_vim_counted_operator(&mut self, op: VimOperator, event: KeyEvent) -> bool {
         if let Some(digit) = count_digit(event)
             && (self.vim_count.is_some()
-                || digit != 0 && self.vim_motion_for_event(event).is_none())
+                || digit != 0
+                    && self.vim_motion_for_event(event).is_none()
+                    && self
+                        .vim_repeat_find_for_event(event, /*operator*/ true)
+                        .is_none())
         {
             self.vim_count = Some(
                 self.vim_count
@@ -45,6 +49,10 @@ impl TextArea {
                 operator: op,
                 scope,
             };
+            return true;
+        }
+        if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ true) {
+            self.repeat_vim_find(reverse, Some(op), count);
             return true;
         }
         let motion = self.vim_motion_for_event(event);
@@ -150,6 +158,9 @@ impl TextArea {
             }
             VimEditTarget::Find { motion, target } => {
                 return self.find_vim_character_count(motion, Some(op), target, count);
+            }
+            VimEditTarget::RepeatFind { motion, target } => {
+                return self.repeat_vim_character_find(motion, Some(op), target, count);
             }
             VimEditTarget::Line => (self.vim_counted_lines(count), true),
             VimEditTarget::BufferJump { .. } => {
@@ -314,8 +325,13 @@ impl TextArea {
             VimPending::None => self.vim_counted_direct_key_may_edit(event),
             VimPending::Operator(_) => {
                 !self.vim_operator_keymap.cancel.is_pressed(event)
-                    && !(count_digit(event)
-                        .is_some_and(|digit| self.vim_count.is_some() || digit != 0))
+                    && !(count_digit(event).is_some_and(|digit| {
+                        self.vim_count.is_some()
+                            || digit != 0
+                                && self
+                                    .vim_repeat_find_for_event(event, /*operator*/ true)
+                                    .is_none()
+                    }))
                     && self.vim_text_object_scope_for_event(event).is_none()
                     && !self.vim_search_keymap.forward.is_pressed(event)
                     && !self.vim_search_keymap.backward.is_pressed(event)

@@ -305,6 +305,10 @@ pub struct TuiVimNormalKeymap {
     pub till_forward: Option<KeybindingsSpec>,
     /// Stop after the previous character on the current line (`T`).
     pub till_backward: Option<KeybindingsSpec>,
+    /// Repeat the last character search in its original direction (`;`).
+    pub repeat_find: Option<KeybindingsSpec>,
+    /// Repeat the last character search in the opposite direction (`,`).
+    pub reverse_find: Option<KeybindingsSpec>,
     /// Begin a jump to the first buffer line (`gg`).
     pub jump_top: Option<KeybindingsSpec>,
     /// Jump to the last buffer line (`G`).
@@ -384,6 +388,10 @@ pub struct TuiVimOperatorKeymap {
     pub motion_till_forward: Option<KeybindingsSpec>,
     /// Motion: stop after the previous character on the current line (`T`).
     pub motion_till_backward: Option<KeybindingsSpec>,
+    /// Repeat the last character search in its original direction (`;`).
+    pub motion_repeat_find: Option<KeybindingsSpec>,
+    /// Repeat the last character search in the opposite direction (`,`).
+    pub motion_reverse_find: Option<KeybindingsSpec>,
     /// Motion: begin a jump to the first buffer line (`gg`).
     pub motion_jump_top: Option<KeybindingsSpec>,
     /// Motion: jump to the last buffer line (`G`).
