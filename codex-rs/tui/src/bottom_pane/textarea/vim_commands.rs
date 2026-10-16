@@ -59,6 +59,8 @@ pub(super) enum VimEditTarget {
     Line,
     LineEnd,
     Motion(VimMotion),
+    MatchPair,
+    PercentageLine,
     Search(SearchQuery),
     TextObject {
         scope: VimTextObjectScope,
@@ -433,6 +435,12 @@ impl TextArea {
                             return false;
                         }
                     }
+                    VimEditTarget::MatchPair => {
+                        if !self.apply_vim_matching_pair(operator) {
+                            return false;
+                        }
+                    }
+                    VimEditTarget::PercentageLine => unreachable!("percentage requires a count"),
                     VimEditTarget::Visual(shape) => {
                         if !self.apply_vim_visual_shape(operator, shape) {
                             return false;
@@ -521,6 +529,12 @@ impl TextArea {
     }
 
     pub(super) fn handle_vim_extra_command(&mut self, event: KeyEvent) -> bool {
+        if self.vim_normal_keymap.match_pair.is_pressed(event) {
+            if let Some(target) = self.vim_matching_pair() {
+                self.set_cursor(target);
+            }
+            return true;
+        }
         if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ false) {
             self.repeat_vim_find(reverse, None, 1);
             return true;

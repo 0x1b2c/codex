@@ -315,6 +315,8 @@ pub struct TuiVimNormalKeymap {
     pub repeat_find: Option<KeybindingsSpec>,
     /// Repeat the last character search in the opposite direction (`,`).
     pub reverse_find: Option<KeybindingsSpec>,
+    /// Jump to a matching bracket or a percentage line (`%`).
+    pub match_pair: Option<KeybindingsSpec>,
     /// Begin a jump to the first buffer line (`gg`).
     pub jump_top: Option<KeybindingsSpec>,
     /// Jump to the last buffer line (`G`).
@@ -408,6 +410,8 @@ pub struct TuiVimOperatorKeymap {
     pub motion_repeat_find: Option<KeybindingsSpec>,
     /// Repeat the last character search in the opposite direction (`,`).
     pub motion_reverse_find: Option<KeybindingsSpec>,
+    /// Operator motion to a matching bracket or a percentage line (`%`).
+    pub motion_match_pair: Option<KeybindingsSpec>,
     /// Motion: begin a jump to the first buffer line (`gg`).
     pub motion_jump_top: Option<KeybindingsSpec>,
     /// Motion: jump to the last buffer line (`G`).

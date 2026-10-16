@@ -21,6 +21,7 @@ impl TextArea {
         if let Some(digit) = count_digit(event)
             && (self.vim_count.is_some()
                 || digit != 0
+                    && !self.vim_operator_keymap.motion_match_pair.is_pressed(event)
                     && self.vim_motion_for_event(event).is_none()
                     && self
                         .vim_repeat_find_for_event(event, /*operator*/ true)
@@ -54,6 +55,18 @@ impl TextArea {
         }
         if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ true) {
             self.repeat_vim_find(reverse, Some(op), count);
+            return true;
+        }
+        if self.vim_operator_keymap.motion_match_pair.is_pressed(event) {
+            self.start_vim_counted_operator(
+                op,
+                if counted {
+                    VimEditTarget::PercentageLine
+                } else {
+                    VimEditTarget::MatchPair
+                },
+                count,
+            );
             return true;
         }
         let motion = self.vim_motion_for_event(event);
@@ -137,6 +150,19 @@ impl TextArea {
             VimEditTarget::Character | VimEditTarget::Motion(VimMotion::LineEnd)
         );
         let (range, linewise) = match target {
+            VimEditTarget::MatchPair => return self.apply_vim_matching_pair(op),
+            VimEditTarget::PercentageLine => {
+                let Some(start) = self.vim_percentage_line(count) else {
+                    return false;
+                };
+                let current = self.current_line_range_with_newline();
+                let end = self.end_of_line(start);
+                (
+                    current.start.min(start)
+                        ..current.end.max(end + usize::from(end < self.text.len())),
+                    true,
+                )
+            }
             VimEditTarget::Character => {
                 let (range, _) = self.vim_counted_character_range(count);
                 if range.is_empty() {
@@ -335,6 +361,7 @@ impl TextArea {
                     && !(count_digit(event).is_some_and(|digit| {
                         self.vim_count.is_some()
                             || digit != 0
+                                && !self.vim_operator_keymap.motion_match_pair.is_pressed(event)
                                 && self
                                     .vim_repeat_find_for_event(event, /*operator*/ true)
                                     .is_none()

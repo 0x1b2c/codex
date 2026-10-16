@@ -1207,3 +1207,43 @@ fn visual_line_delete_undo_restores_atomic_image_metadata() {
     assert_eq!(composer.draft_snapshot(), before);
     assert!(composer.draft.textarea.is_vim_normal_mode());
 }
+
+#[test]
+fn matching_pair_edits_and_complete_changes_each_have_one_undo_transaction() {
+    for (command, edited) in [("d%", " y(bb)"), ("c%NEW", "NEW y(bb)")] {
+        let mut composer = vim_composer("x(a) y(bb)");
+        keys(&mut composer, command);
+        escape(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), "x(a) y(bb)");
+        keys(&mut composer, "%50%101%");
+        assert_eq!(composer.vim_history.redo.len(), 1);
+        assert!(composer.vim_history.pending.is_none());
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+    }
+    let mut composer = vim_composer("x(a) y(bb)");
+    keys(&mut composer, "d%.");
+    assert_eq!(composer.current_text(), "");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), " y(bb)");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "");
+}
+
+#[test]
+fn digit_bound_matching_pair_operator_preserves_undo_transactions() {
+    let mut composer = vim_composer("x(a) tail");
+    let mut config = TuiKeymap::default();
+    config.vim_operator.motion_match_pair =
+        Some(KeybindingsSpec::One(KeybindingSpec("2".to_owned())));
+    composer.set_keymap_bindings(&RuntimeKeymap::from_config(&config).unwrap());
+    keys(&mut composer, "d2");
+    assert_eq!(composer.current_text(), " tail");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "x(a) tail");
+}

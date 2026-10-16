@@ -242,6 +242,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) till_backward: Vec<KeyBinding>,
     pub(crate) repeat_find: Vec<KeyBinding>,
     pub(crate) reverse_find: Vec<KeyBinding>,
+    pub(crate) match_pair: Vec<KeyBinding>,
     pub(crate) jump_top: Vec<KeyBinding>,
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) delete_char: Vec<KeyBinding>,
@@ -293,6 +294,7 @@ pub(crate) struct VimOperatorKeymap {
     pub(crate) motion_till_backward: Vec<KeyBinding>,
     pub(crate) motion_repeat_find: Vec<KeyBinding>,
     pub(crate) motion_reverse_find: Vec<KeyBinding>,
+    pub(crate) motion_match_pair: Vec<KeyBinding>,
     pub(crate) motion_jump_top: Vec<KeyBinding>,
     pub(crate) motion_jump_bottom: Vec<KeyBinding>,
     pub(crate) select_inner_text_object: Vec<KeyBinding>,
@@ -903,6 +905,7 @@ impl RuntimeKeymap {
             till_backward: resolve_local!(keymap, defaults, vim_normal, till_backward),
             repeat_find: resolve_local!(keymap, defaults, vim_normal, repeat_find),
             reverse_find: resolve_local!(keymap, defaults, vim_normal, reverse_find),
+            match_pair: resolve_local!(keymap, defaults, vim_normal, match_pair),
             jump_top: resolve_local!(keymap, defaults, vim_normal, jump_top),
             jump_bottom: resolve_local!(keymap, defaults, vim_normal, jump_bottom),
             delete_char: resolve_local!(keymap, defaults, vim_normal, delete_char),
@@ -1052,6 +1055,10 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.reverse_find.as_ref(),
                 vim_normal.reverse_find.as_slice(),
+            ),
+            (
+                keymap.vim_normal.match_pair.as_ref(),
+                vim_normal.match_pair.as_slice(),
             ),
             (
                 keymap.vim_normal.jump_top.as_ref(),
@@ -1220,6 +1227,10 @@ impl RuntimeKeymap {
                 &mut vim_normal.reverse_find,
             ),
             (
+                keymap.vim_normal.match_pair.as_ref(),
+                &mut vim_normal.match_pair,
+            ),
+            (
                 keymap.vim_normal.jump_top.as_ref(),
                 &mut vim_normal.jump_top,
             ),
@@ -1315,6 +1326,7 @@ impl RuntimeKeymap {
                 vim_operator,
                 motion_reverse_find
             ),
+            motion_match_pair: resolve_local!(keymap, defaults, vim_operator, motion_match_pair),
             motion_jump_top: resolve_local!(keymap, defaults, vim_operator, motion_jump_top),
             motion_jump_bottom: resolve_local!(keymap, defaults, vim_operator, motion_jump_bottom),
             select_inner_text_object: resolve_local!(
@@ -1418,6 +1430,10 @@ impl RuntimeKeymap {
                 vim_operator.motion_reverse_find.as_slice(),
             ),
             (
+                keymap.vim_operator.motion_match_pair.as_ref(),
+                vim_operator.motion_match_pair.as_slice(),
+            ),
+            (
                 keymap.vim_operator.motion_jump_top.as_ref(),
                 vim_operator.motion_jump_top.as_slice(),
             ),
@@ -1484,6 +1500,10 @@ impl RuntimeKeymap {
             (
                 keymap.vim_operator.motion_reverse_find.as_ref(),
                 &mut vim_operator.motion_reverse_find,
+            ),
+            (
+                keymap.vim_operator.motion_match_pair.as_ref(),
+                &mut vim_operator.motion_match_pair,
             ),
             (
                 keymap.vim_operator.motion_jump_top.as_ref(),
@@ -2049,6 +2069,7 @@ impl RuntimeKeymap {
                 till_backward: default_bindings![shift(KeyCode::Char('t'))],
                 repeat_find: default_bindings![plain(KeyCode::Char(';'))],
                 reverse_find: default_bindings![plain(KeyCode::Char(','))],
+                match_pair: default_bindings![plain(KeyCode::Char('%')), shift(KeyCode::Char('%'))],
                 jump_top: default_bindings![],
                 jump_bottom: default_bindings![
                     shift(KeyCode::Char('g')),
@@ -2126,6 +2147,10 @@ impl RuntimeKeymap {
                 motion_till_backward: default_bindings![shift(KeyCode::Char('t'))],
                 motion_repeat_find: default_bindings![plain(KeyCode::Char(';'))],
                 motion_reverse_find: default_bindings![plain(KeyCode::Char(','))],
+                motion_match_pair: default_bindings![
+                    plain(KeyCode::Char('%')),
+                    shift(KeyCode::Char('%'))
+                ],
                 motion_jump_top: default_bindings![],
                 motion_jump_bottom: default_bindings![
                     shift(KeyCode::Char('g')),
@@ -4492,6 +4517,53 @@ mod tests {
         assert!(runtime.vim_operator.motion_reverse_find.is_empty());
         keymap.vim_normal.repeat_find = Some(one(";"));
         expect_conflict(&keymap, "move_left", "repeat_find");
+    }
+
+    #[test]
+    fn matching_pair_bindings_support_remapping_and_legacy_conflicts() {
+        let defaults = RuntimeKeymap::defaults();
+        assert!(
+            defaults
+                .vim_normal
+                .match_pair
+                .contains(&key_hint::plain(KeyCode::Char('%')))
+        );
+        assert!(
+            defaults
+                .vim_operator
+                .motion_match_pair
+                .contains(&key_hint::shift(KeyCode::Char('%')))
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.match_pair = Some(one("2"));
+        config.vim_operator.motion_match_pair = Some(one("3"));
+        let runtime = RuntimeKeymap::from_config(&config).unwrap();
+        assert_eq!(
+            runtime.vim_normal.match_pair,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        assert_eq!(
+            runtime.vim_operator.motion_match_pair,
+            vec![key_hint::plain(KeyCode::Char('3'))]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_left = Some(one("%"));
+        config.vim_operator.motion_left = Some(one("%"));
+        let runtime = RuntimeKeymap::from_config(&config).unwrap();
+        assert!(
+            !runtime
+                .vim_normal
+                .match_pair
+                .contains(&key_hint::plain(KeyCode::Char('%')))
+        );
+        assert!(
+            !runtime
+                .vim_operator
+                .motion_match_pair
+                .contains(&key_hint::plain(KeyCode::Char('%')))
+        );
+        config.vim_normal.match_pair = Some(one("%"));
+        expect_conflict(&config, "move_left", "match_pair");
     }
 
     #[test]

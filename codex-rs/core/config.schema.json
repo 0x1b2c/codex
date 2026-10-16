@@ -4841,6 +4841,7 @@
               "join_lines": null,
               "jump_bottom": null,
               "jump_top": null,
+              "match_pair": null,
               "move_big_word_backward": null,
               "move_big_word_end": null,
               "move_big_word_forward": null,
@@ -4888,6 +4889,7 @@
               "motion_left": null,
               "motion_line_end": null,
               "motion_line_start": null,
+              "motion_match_pair": null,
               "motion_repeat_find": null,
               "motion_reverse_find": null,
               "motion_right": null,
@@ -5887,6 +5889,7 @@
             "join_lines": null,
             "jump_bottom": null,
             "jump_top": null,
+            "match_pair": null,
             "move_big_word_backward": null,
             "move_big_word_end": null,
             "move_big_word_forward": null,
@@ -5941,6 +5944,7 @@
             "motion_left": null,
             "motion_line_end": null,
             "motion_line_start": null,
+            "motion_match_pair": null,
             "motion_repeat_find": null,
             "motion_reverse_find": null,
             "motion_right": null,
@@ -6356,6 +6360,14 @@
           ],
           "description": "Begin a jump to the first buffer line (`gg`)."
         },
+        "match_pair": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Jump to a matching bracket or a percentage line (`%`)."
+        },
         "move_big_word_backward": {
           "allOf": [
             {
@@ -6722,6 +6734,14 @@
             }
           ],
           "description": "Motion: to start of line (`0`)."
+        },
+        "motion_match_pair": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Operator motion to a matching bracket or a percentage line (`%`)."
         },
         "motion_repeat_find": {
           "allOf": [

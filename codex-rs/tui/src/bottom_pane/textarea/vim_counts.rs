@@ -54,6 +54,7 @@ impl TextArea {
             &keys.till_backward,
             &keys.repeat_find,
             &keys.reverse_find,
+            &keys.match_pair,
             &keys.jump_top,
             &keys.jump_bottom,
             &keys.delete_char,
@@ -120,6 +121,13 @@ impl TextArea {
         {
             self.vim_count = Some(count);
             self.handle_vim_extra_command(event);
+            return true;
+        }
+        if keys.match_pair.is_pressed(event) {
+            if let Some(target) = self.vim_percentage_line(count) {
+                self.set_cursor(target);
+                self.set_cursor(self.first_non_blank_of_current_line());
+            }
             return true;
         }
         if keys.jump_top.is_pressed(event) || keys.jump_bottom.is_pressed(event) {
