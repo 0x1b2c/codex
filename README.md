@@ -1,3 +1,8 @@
+> **Personal fork by [0x1b2c](https://github.com/0x1b2c).** This fork carries
+> Chinese-aware Vim editing improvements, a prompt-cache expiry estimate, and a
+> local build/install command. See [FORK.md](FORK.md) for the patch stack and build
+> instructions. The rest of this README is unchanged from upstream Codex.
+
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
 <p align="center">
   <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
