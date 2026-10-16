@@ -64,6 +64,7 @@ mod vim_horizontal;
 #[cfg(test)]
 #[path = "textarea/vim_horizontal_tests.rs"]
 mod vim_horizontal_tests;
+mod vim_join;
 mod vim_operator_counts;
 mod vim_repeat_find;
 mod vim_search;
@@ -1011,6 +1012,10 @@ impl TextArea {
         }
         if self.vim_normal_keymap.paste_before.is_pressed(event) {
             self.start_vim_edit(VimAction::PasteBefore { count: 1 });
+            return;
+        }
+        if self.vim_normal_keymap.join_lines.is_pressed(event) {
+            self.start_vim_edit(VimAction::JoinLines { count: 2 });
             return;
         }
         if self

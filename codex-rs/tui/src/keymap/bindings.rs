@@ -363,6 +363,7 @@ define_runtime_action_bindings! {
         yank_line,
         paste_after,
         paste_before,
+        join_lines,
         start_delete_operator,
         start_yank_operator,
         start_change_operator,

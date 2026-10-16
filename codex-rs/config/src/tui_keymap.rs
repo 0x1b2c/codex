@@ -341,6 +341,8 @@ pub struct TuiVimNormalKeymap {
     pub paste_after: Option<KeybindingsSpec>,
     /// Paste before cursor (`P`).
     pub paste_before: Option<KeybindingsSpec>,
+    /// Join logical lines using default Vim spacing (`J`).
+    pub join_lines: Option<KeybindingsSpec>,
     /// Begin delete operator; next key selects motion (`d`).
     pub start_delete_operator: Option<KeybindingsSpec>,
     /// Begin yank operator; next key selects motion (`y`).

@@ -255,6 +255,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) yank_line: Vec<KeyBinding>,
     pub(crate) paste_after: Vec<KeyBinding>,
     pub(crate) paste_before: Vec<KeyBinding>,
+    pub(crate) join_lines: Vec<KeyBinding>,
     pub(crate) start_delete_operator: Vec<KeyBinding>,
     pub(crate) start_yank_operator: Vec<KeyBinding>,
     pub(crate) start_change_operator: Vec<KeyBinding>,
@@ -920,6 +921,7 @@ impl RuntimeKeymap {
             yank_line: resolve_local!(keymap, defaults, vim_normal, yank_line),
             paste_after: resolve_local!(keymap, defaults, vim_normal, paste_after),
             paste_before: resolve_local!(keymap, defaults, vim_normal, paste_before),
+            join_lines: resolve_local!(keymap, defaults, vim_normal, join_lines),
             start_delete_operator: resolve_local!(
                 keymap,
                 defaults,
@@ -1104,6 +1106,10 @@ impl RuntimeKeymap {
                 vim_normal.paste_before.as_slice(),
             ),
             (
+                keymap.vim_normal.join_lines.as_ref(),
+                vim_normal.join_lines.as_slice(),
+            ),
+            (
                 keymap.vim_normal.start_delete_operator.as_ref(),
                 vim_normal.start_delete_operator.as_slice(),
             ),
@@ -1167,6 +1173,10 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.paste_before.as_ref(),
                 &mut vim_normal.paste_before,
+            ),
+            (
+                keymap.vim_normal.join_lines.as_ref(),
+                &mut vim_normal.join_lines,
             ),
         ] {
             if configured.is_none() {
@@ -1830,6 +1840,10 @@ impl RuntimeKeymap {
                 &mut resolved.vim_normal.enter_visual_line,
             ),
             (
+                keymap.vim_normal.join_lines.as_ref(),
+                &mut resolved.vim_normal.join_lines,
+            ),
+            (
                 keymap.vim_normal.enter_replace_mode.as_ref(),
                 &mut resolved.vim_normal.enter_replace_mode,
             ),
@@ -2066,6 +2080,7 @@ impl RuntimeKeymap {
                     shift(KeyCode::Char('p')),
                     plain(KeyCode::Char('P'))
                 ],
+                join_lines: default_bindings![shift(KeyCode::Char('j')), plain(KeyCode::Char('J'))],
                 start_delete_operator: default_bindings![plain(KeyCode::Char('d'))],
                 start_yank_operator: default_bindings![plain(KeyCode::Char('y'))],
                 start_change_operator: default_bindings![plain(KeyCode::Char('c'))],
@@ -3360,6 +3375,35 @@ mod tests {
     }
 
     #[test]
+    fn join_lines_defaults_remap_unbind_and_detect_explicit_conflicts() {
+        assert_eq!(
+            RuntimeKeymap::defaults().vim_normal.join_lines,
+            vec![
+                key_hint::shift(KeyCode::Char('j')),
+                key_hint::plain(KeyCode::Char('J'))
+            ]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.join_lines = Some(one("2"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("join should remap");
+        assert_eq!(
+            runtime.vim_normal.join_lines,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        config.vim_normal.join_lines = Some(KeybindingsSpec::Many(vec![]));
+        assert!(
+            RuntimeKeymap::from_config(&config)
+                .unwrap()
+                .vim_normal
+                .join_lines
+                .is_empty()
+        );
+        config.vim_normal.move_left = Some(one("J"));
+        config.vim_normal.join_lines = Some(one("J"));
+        expect_conflict(&config, "move_left", "join_lines");
+    }
+
+    #[test]
     fn vim_line_shortcuts_are_configurable_and_yield_to_explicit_legacy_bindings() {
         let mut config = TuiKeymap::default();
         config.vim_normal.move_first_nonblank = Some(one("2"));
@@ -3674,6 +3718,7 @@ mod tests {
         for (key, new_action) in [
             ("v", "enter_visual"),
             ("shift-v", "enter_visual_line"),
+            ("shift-j", "join_lines"),
             ("u", "undo"),
             ("ctrl-r", "redo"),
             ("shift-r", "enter_replace_mode"),

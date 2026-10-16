@@ -877,6 +877,111 @@ fn dot_count_overrides_replace_and_paste_without_multiplying_the_old_count() {
 }
 
 #[test]
+fn join_lines_trims_indentation_and_uses_default_vim_spacing() {
+    for (original, joined, cursor) in [
+        ("a\n \tb", "a b", 1),
+        ("a.\nb", "a.  b", 2),
+        ("a!\nb", "a!  b", 2),
+        ("a?\nb", "a?  b", 2),
+        ("a. \nb", "a.  b", 3),
+        ("a.  \nb", "a.  b", 4),
+        ("a\t\nb", "a\tb", 2),
+        ("a\n )b", "a)b", 1),
+        ("a\n ,b", "a ,b", 1),
+        ("a\n", "a", 0),
+        ("a\n \t", "a", 0),
+        ("\n b", "b", 0),
+        ("a\n\u{3000}b", "a \u{3000}b", 1),
+        ("e\u{301}\n👩‍💻", "e\u{301} 👩‍💻", 3),
+    ] {
+        let mut t = vim_textarea(original, 0);
+        t.kill_buffer = "saved".to_owned();
+        keys(&mut t, "J");
+        assert_eq!((t.text(), t.cursor()), (joined, cursor), "{original:?}");
+        assert_eq!(t.kill_buffer, "saved");
+        assert!(t.is_vim_normal_mode());
+    }
+}
+
+#[test]
+fn counted_join_and_dot_resolve_line_counts_and_keep_the_latest_override() {
+    let mut t = vim_textarea("a\nb\nc\nd\ne\nf\ng\nh", 0);
+    keys(&mut t, "3J.");
+    assert_eq!(t.text(), "a b c d e\nf\ng\nh");
+    keys(&mut t, "2.");
+    assert_eq!(t.text(), "a b c d e f\ng\nh");
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "a b c d e f g\nh");
+    for command in ["J", "1J", "0J"] {
+        let mut t = vim_textarea("a\nb\nc", 0);
+        keys(&mut t, command);
+        assert_eq!(t.text(), "a b\nc", "{command}");
+    }
+    let mut t = vim_textarea("a\n\n b\nc", 0);
+    keys(&mut t, "999999999999999999999999999999999999J");
+    assert_eq!((t.text(), t.cursor()), ("a b c", 3));
+    let mut t = vim_textarea("a\nb\nc\nd", 0);
+    keys(&mut t, "3JjJ");
+    assert_eq!(t.text(), "a b c\nd");
+    t.set_cursor(0);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "a b c d");
+}
+
+#[test]
+fn join_preserves_atomic_elements_and_leaves_internal_line_breaks_intact() {
+    let mut t = vim_textarea("e\u{301}\n  ", 0);
+    t.set_cursor(t.text().len());
+    t.insert_element("<attachment>");
+    t.insert_str("\n👩‍💻");
+    let id = t.elements[0].id;
+    t.set_cursor(0);
+    keys(&mut t, "3J");
+    assert_eq!(t.text(), "e\u{301} <attachment> 👩‍💻");
+    assert_eq!(t.elements.len(), 1);
+    assert_eq!(t.elements[0].id, id);
+    assert_eq!(&t.text()[t.elements[0].range.clone()], "<attachment>");
+
+    let mut t = vim_textarea("", 0);
+    t.insert_element("<multi\nline>");
+    t.insert_str("\nnext");
+    t.set_cursor(0);
+    keys(&mut t, "3J");
+    assert_eq!(t.text(), "<multi\nline>\nnext");
+    assert_eq!(t.elements.len(), 1);
+}
+
+#[test]
+fn visual_join_uses_touched_lines_and_exits_to_normal_mode() {
+    for command in ["vjJ", "VjJ", "jvkJ", "jVkJ", "vJ", "VJ"] {
+        let mut t = vim_textarea("ab\n  cd\nef\ngh", 1);
+        keys(&mut t, command);
+        assert_eq!((t.text(), t.cursor()), ("ab cd\nef\ngh", 2), "{command}");
+        assert!(t.is_vim_normal_mode());
+        keys(&mut t, ".");
+        assert_eq!(t.text(), "ab cd ef\ngh");
+    }
+}
+
+#[test]
+fn join_accepts_shift_events_digit_remapping_and_unbinding() {
+    let mut t = vim_textarea("a\nb\nc", 0);
+    t.input(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::SHIFT));
+    assert_eq!(t.text(), "a b\nc");
+    let mut keymap = RuntimeKeymap::defaults();
+    keymap.vim_normal.join_lines = vec![crate::key_hint::plain(KeyCode::Char('2'))];
+    t.set_keymap_bindings(&keymap);
+    keys(&mut t, "J");
+    assert_eq!(t.text(), "a b\nc");
+    keys(&mut t, "2");
+    assert_eq!(t.text(), "a b c");
+    keymap.vim_normal.join_lines.clear();
+    t.set_keymap_bindings(&keymap);
+    keys(&mut t, "J2");
+    assert_eq!(t.text(), "a b c");
+}
+
+#[test]
 fn failed_or_cancelled_dot_counts_preserve_the_previous_change() {
     let mut textarea = vim_textarea("abcdefgh", 0);
     keys(

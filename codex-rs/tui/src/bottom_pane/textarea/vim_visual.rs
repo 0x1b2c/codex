@@ -1,6 +1,7 @@
 //! Visual selections keep a fixed atomic anchor and an inclusive moving end.
 //! Navigation reuses Normal-mode motions; d/c/y consume characterwise or whole-line ranges.
 //! Dot stores atomic dimensions or selected line count, independent of byte offsets.
+//! J joins every touched logical line and returns to Normal mode.
 
 use super::KillBufferKind;
 use super::TextArea;
@@ -123,6 +124,10 @@ impl TextArea {
             self.apply_vim_visual_selection(operator);
             return;
         }
+        if self.vim_normal_keymap.join_lines.is_pressed(event) {
+            self.join_vim_visual_lines();
+            return;
+        }
         if self.wants_vim_count_key(event) || self.is_vim_visual_navigation(event) {
             self.handle_vim_normal(event);
             // Normal word motions may reach EOF; keep the selected endpoint on its item.
@@ -135,17 +140,18 @@ impl TextArea {
         self.vim_pending = VimPending::None;
     }
 
-    /// Only an actual selection deletion starts a composer undo transaction.
+    /// Selection deletion, change, and joining can start a composer undo transaction.
     pub(crate) fn vim_visual_key_may_edit(&self, event: KeyEvent) -> bool {
         matches!(self.vim_pending, VimPending::None)
             && event.code != KeyCode::Esc
             && !self.vim_normal_keymap.cancel_operator.is_pressed(event)
             && !self.vim_normal_keymap.enter_visual.is_pressed(event)
             && !self.vim_normal_keymap.enter_visual_line.is_pressed(event)
-            && matches!(
-                self.vim_visual_operator(event),
-                Some(VimOperator::Delete | VimOperator::Change)
-            )
+            && (self.vim_normal_keymap.join_lines.is_pressed(event)
+                || matches!(
+                    self.vim_visual_operator(event),
+                    Some(VimOperator::Delete | VimOperator::Change)
+                ))
     }
 
     fn vim_visual_operator(&self, event: KeyEvent) -> Option<VimOperator> {

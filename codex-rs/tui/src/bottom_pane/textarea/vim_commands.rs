@@ -87,6 +87,7 @@ pub(super) enum VimAction {
     Replace { ch: char, count: usize },
     PasteAfter { count: usize },
     PasteBefore { count: usize },
+    JoinLines { count: usize },
     DeleteBackward,
     DeleteForward,
     DeleteBackwardWord,
@@ -284,8 +285,11 @@ impl TextArea {
             self.vim_commands.pending_change.clear();
             return false;
         }
-        self.vim_commands.changed =
-            self.text.len() != prior_len || matches!(action, VimAction::Replace { .. });
+        self.vim_commands.changed = self.text.len() != prior_len
+            || matches!(
+                action,
+                VimAction::Replace { .. } | VimAction::JoinLines { .. }
+            );
         if self.vim_mode == VimMode::Normal {
             self.finish_pending_vim_change();
         }
@@ -334,7 +338,8 @@ impl TextArea {
                     count: recorded, ..
                 }
                 | VimAction::PasteAfter { count: recorded }
-                | VimAction::PasteBefore { count: recorded } => *recorded = count,
+                | VimAction::PasteBefore { count: recorded }
+                | VimAction::JoinLines { count: recorded } => *recorded = count,
                 // Counted Insert and Replace sessions need their own replay semantics.
                 _ => return,
             }
@@ -491,6 +496,7 @@ impl TextArea {
             VimAction::Replace { ch, count } => return self.replace_vim_characters(ch, count),
             VimAction::PasteAfter { count } => return self.paste_vim(count, /*before*/ false),
             VimAction::PasteBefore { count } => return self.paste_vim(count, /*before*/ true),
+            VimAction::JoinLines { count } => return self.join_vim_lines(count),
             VimAction::DeleteBackward => self.delete_backward(/*n*/ 1),
             VimAction::DeleteForward => self.delete_forward(/*n*/ 1),
             VimAction::DeleteBackwardWord => self.delete_backward_word(),

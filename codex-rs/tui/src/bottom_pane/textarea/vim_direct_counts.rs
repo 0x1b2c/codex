@@ -69,6 +69,10 @@ impl TextArea {
             self.start_vim_edit(VimAction::PasteBefore { count });
             return true;
         }
+        if keys.join_lines.is_pressed(event) {
+            self.start_vim_edit(VimAction::JoinLines { count });
+            return true;
+        }
         if keys.repeat_last_change.is_pressed(event) {
             self.repeat_vim_change(Some(count));
             return true;
@@ -86,6 +90,7 @@ impl TextArea {
             || keys.change_to_line_end.is_pressed(event)
             || keys.paste_after.is_pressed(event)
             || keys.paste_before.is_pressed(event)
+            || keys.join_lines.is_pressed(event)
             || keys.repeat_last_change.is_pressed(event)
     }
 

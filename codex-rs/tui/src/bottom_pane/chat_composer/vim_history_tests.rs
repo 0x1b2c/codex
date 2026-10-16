@@ -49,6 +49,43 @@ fn ctrl_r(composer: &mut ChatComposer) {
 }
 
 #[test]
+fn normal_and_visual_joins_and_dot_each_form_one_undo_transaction() {
+    for (command, joined) in [
+        ("3J", "a b c\nd\ne"),
+        ("v2jJ", "a b c\nd\ne"),
+        ("V2jJ", "a b c\nd\ne"),
+    ] {
+        let original = "a\nb\nc\nd\ne";
+        let mut composer = vim_composer(original);
+        keys(&mut composer, command);
+        assert_eq!(composer.current_text(), joined, "{command}");
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), original);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), joined);
+        keys(&mut composer, ".");
+        assert_eq!(composer.current_text(), "a b c d e");
+        assert_eq!(composer.vim_history.undo.len(), 2);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), joined);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), "a b c d e");
+    }
+}
+
+#[test]
+fn joining_at_eof_preserves_redo_and_creates_no_undo_step() {
+    let mut composer = vim_composer("abc");
+    keys(&mut composer, "xuJ");
+    assert_eq!(composer.current_text(), "abc");
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "bc");
+}
+
+#[test]
 fn visual_navigation_cancellation_and_unsupported_edits_preserve_redo() {
     let mut composer = vim_composer("one two\nthree");
     keys(&mut composer, "xu");

@@ -4838,6 +4838,7 @@
               "find_backward": null,
               "find_forward": null,
               "insert_line_start": null,
+              "join_lines": null,
               "jump_bottom": null,
               "jump_top": null,
               "move_big_word_backward": null,
@@ -5883,6 +5884,7 @@
             "find_backward": null,
             "find_forward": null,
             "insert_line_start": null,
+            "join_lines": null,
             "jump_bottom": null,
             "jump_top": null,
             "move_big_word_backward": null,
@@ -6329,6 +6331,14 @@
             }
           ],
           "description": "Enter insert mode at first non-blank of line (`I`)."
+        },
+        "join_lines": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Join logical lines using default Vim spacing (`J`)."
         },
         "jump_bottom": {
           "allOf": [

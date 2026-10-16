@@ -67,6 +67,7 @@ impl TextArea {
             &keys.yank_line,
             &keys.paste_after,
             &keys.paste_before,
+            &keys.join_lines,
             &keys.start_delete_operator,
             &keys.start_yank_operator,
             &keys.start_change_operator,
