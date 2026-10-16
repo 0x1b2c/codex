@@ -1120,3 +1120,53 @@ fn visual_find_target_and_empty_delete_do_not_create_undo_entries() {
     assert!(empty.vim_history.pending.is_none());
     assert!(empty.vim_history.undo.is_empty());
 }
+
+#[test]
+fn visual_line_change_and_dot_each_undo_the_complete_insert_session() {
+    let original = "one\ntwo\nthree\nfour\nfive";
+    let mut composer = vim_composer(original);
+    keys(&mut composer, "VjcXY");
+    assert!(composer.vim_history.pending.is_some());
+    escape(&mut composer);
+    assert_eq!(composer.current_text(), "XY\nthree\nfour\nfive");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), original);
+    ctrl_r(&mut composer);
+    composer.draft.textarea.set_cursor(4);
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "XY\nXY\nfive");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "XY\nthree\nfour\nfive");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "XY\nXY\nfive");
+}
+
+#[test]
+fn visual_line_navigation_yank_and_cancel_preserve_redo() {
+    let mut composer = vim_composer("one\ntwo\nthree");
+    keys(&mut composer, "xuVjvV");
+    escape(&mut composer);
+    keys(&mut composer, "Vky");
+    assert!(composer.vim_history.pending.is_none());
+    assert!(composer.vim_history.undo.is_empty());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "ne\ntwo\nthree");
+}
+
+#[test]
+fn visual_line_delete_undo_restores_atomic_image_metadata() {
+    let mut composer = vim_composer("alpha ");
+    composer.draft.textarea.set_cursor("alpha ".len());
+    composer.attach_image(PathBuf::from("example.png"));
+    composer.draft.textarea.set_cursor(0);
+    let before = composer.draft_snapshot();
+    keys(&mut composer, "Vd");
+    assert!(composer.local_image_paths().is_empty());
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.draft_snapshot(), before);
+    assert!(composer.draft.textarea.is_vim_normal_mode());
+}

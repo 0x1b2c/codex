@@ -329,6 +329,7 @@ define_runtime_action_bindings! {
         open_line_below,
         open_line_above,
         enter_visual,
+        enter_visual_line,
         enter_replace_mode,
         move_left,
         move_right,

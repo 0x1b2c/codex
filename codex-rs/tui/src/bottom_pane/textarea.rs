@@ -461,7 +461,7 @@ impl TextArea {
         self.vim_enabled
             && (matches!(
                 self.vim_mode,
-                VimMode::Insert | VimMode::Replace | VimMode::Visual
+                VimMode::Insert | VimMode::Replace | VimMode::Visual | VimMode::VisualLine
             ) || self.is_vim_operator_pending())
             && event.code == KeyCode::Esc
             && event.modifiers == KeyModifiers::NONE
@@ -481,6 +481,7 @@ impl TextArea {
         Some(match self.vim_mode {
             VimMode::Normal => "Normal",
             VimMode::Visual => "Visual",
+            VimMode::VisualLine => "Visual Line",
             VimMode::Insert => "Insert",
             VimMode::Replace => "Replace",
         })
@@ -494,6 +495,7 @@ impl TextArea {
         Some(match self.vim_mode {
             VimMode::Normal => "Vim: Normal".magenta(),
             VimMode::Visual => "Vim: Visual".yellow(),
+            VimMode::VisualLine => "Vim: Visual Line".yellow(),
             VimMode::Insert => "Vim: Insert".green(),
             VimMode::Replace => "Vim: Replace".cyan(),
         })
@@ -816,7 +818,7 @@ impl TextArea {
         match self.vim_mode {
             VimMode::Insert | VimMode::Replace => self.handle_vim_insert(event),
             VimMode::Normal => self.handle_vim_normal(event),
-            VimMode::Visual => self.handle_vim_visual(event),
+            VimMode::Visual | VimMode::VisualLine => self.handle_vim_visual(event),
         }
         if matches!(prior_mode, VimMode::Insert | VimMode::Replace)
             && self.vim_mode == VimMode::Normal
@@ -873,7 +875,11 @@ impl TextArea {
         }
 
         if self.vim_normal_keymap.enter_visual.is_pressed(event) {
-            self.enter_vim_visual_mode();
+            self.enter_vim_visual_mode(VimMode::Visual);
+            return;
+        }
+        if self.vim_normal_keymap.enter_visual_line.is_pressed(event) {
+            self.enter_vim_visual_mode(VimMode::VisualLine);
             return;
         }
         if self.vim_normal_keymap.enter_insert.is_pressed(event) {
@@ -2410,12 +2416,17 @@ impl TextArea {
                     style,
                 );
             }
-            // A selected newline remains visible, including on otherwise empty Visual rows.
-            if visual_selection
+            // Selected newlines and a selected empty final line remain visible.
+            let selected_newline = visual_selection
                 .as_ref()
                 .is_some_and(|range| range.contains(&line_range.end))
-                && self.text.as_bytes().get(line_range.end) == Some(&b'\n')
-            {
+                && self.text.as_bytes().get(line_range.end) == Some(&b'\n');
+            let selected_empty_final_line = self.vim_mode == VimMode::VisualLine
+                && line_range.start == self.text.len()
+                && self
+                    .vim_visual_anchor
+                    .is_some_and(|anchor| anchor.max(self.cursor_pos) == self.text.len());
+            if selected_newline || selected_empty_final_line {
                 let column = display_width(visible);
                 if column < usize::from(area.width) {
                     buf[(area.x + column as u16, y)].set_style(base_style.reversed());

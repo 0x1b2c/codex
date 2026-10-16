@@ -28,6 +28,7 @@ impl TextArea {
         [
             &keys.enter_insert,
             &keys.enter_visual,
+            &keys.enter_visual_line,
             &keys.append_after_cursor,
             &keys.append_line_end,
             &keys.insert_line_start,
@@ -191,6 +192,7 @@ impl TextArea {
         let uncounted = keys.move_line_start.is_pressed(event)
             || keys.move_first_nonblank.is_pressed(event)
             || keys.enter_visual.is_pressed(event)
+            || keys.enter_visual_line.is_pressed(event)
             || keys.enter_insert.is_pressed(event)
             || keys.append_after_cursor.is_pressed(event)
             || keys.append_line_end.is_pressed(event)

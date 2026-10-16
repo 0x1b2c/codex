@@ -88,13 +88,13 @@
 //! Enter accepts a matching preview and discards the saved prompt; without a match, search stays open.
 //! Vim undo/redo snapshots complete drafts and groups direct edits with active Vim transactions.
 //! Numeric operator prefixes defer snapshots until the edit; counted operators form one transaction.
-//! Characterwise Visual d/c/y act on inclusive selections; only d/c start a transaction.
+//! Visual d/c/y act on inclusive character or whole-line selections; only d/c start a transaction.
 //! Visual c keeps deletion and the following Insert session together for undo and semantic dot replay.
 //! An active edit keeps one separately capped snapshot; canceling does not evict committed history.
 //! Canceled history previews restore history and active commands; accepting another prompt resets them.
 //! Normal-mode Ctrl+R redoes an edit, or does nothing when redo is empty. Insert-mode Ctrl+R
 //! keeps prompt-history search; explicitly configured keybindings retain precedence.
-//! Vim queries stay draft-local. Visual character selections own their navigation and Escape;
+//! Vim queries stay draft-local. Visual character and line selections own navigation and Escape;
 //! selection-only input preserves undo/redo and consumes submission keys.
 //!
 //! Slash commands are staged for local history instead of being recorded immediately. Command

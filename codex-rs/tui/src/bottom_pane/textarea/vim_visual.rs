@@ -1,7 +1,8 @@
-//! Characterwise Visual selections keep a fixed atomic anchor and an inclusive moving end.
-//! Navigation reuses Normal-mode motions; d/c/y consume the selection as one characterwise range.
-//! Dot stores atomic width or line count and final-line column, independent of byte offsets.
+//! Visual selections keep a fixed atomic anchor and an inclusive moving end.
+//! Navigation reuses Normal-mode motions; d/c/y consume characterwise or whole-line ranges.
+//! Dot stores atomic dimensions or selected line count, independent of byte offsets.
 
+use super::KillBufferKind;
 use super::TextArea;
 use super::VimMode;
 use super::VimOperator;
@@ -15,34 +16,37 @@ use crossterm::event::KeyModifiers;
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
 
-/// A characterwise selection measured in atomic items, with an inclusive final column.
+/// Selection dimensions measured in atomic items or whole lines.
 #[derive(Clone, Debug)]
 pub(super) enum VimVisualShape {
     SingleLine { width: usize },
     MultiLine { lines: usize, column: usize },
+    Linewise { lines: usize },
 }
 
 impl TextArea {
     pub(crate) fn is_vim_visual_mode(&self) -> bool {
-        self.vim_enabled && self.vim_mode == VimMode::Visual
+        self.vim_enabled && matches!(self.vim_mode, VimMode::Visual | VimMode::VisualLine)
     }
 
-    pub(super) fn enter_vim_visual_mode(&mut self) {
+    pub(super) fn enter_vim_visual_mode(&mut self, mode: VimMode) {
         self.mouse_selection = None;
         self.vim_pending = VimPending::None;
         self.vim_count = None;
         self.vim_operator_count = None;
         self.cancel_vim_search();
-        let anchor = self.vim_visual_item_start(self.cursor_pos);
-        self.set_cursor(anchor);
-        self.vim_visual_anchor = Some(anchor);
-        self.vim_mode = VimMode::Visual;
+        if !self.is_vim_visual_mode() {
+            let anchor = self.vim_visual_item_start(self.cursor_pos);
+            self.set_cursor(anchor);
+            self.vim_visual_anchor = Some(anchor);
+        }
+        self.vim_mode = mode;
     }
 
     /// Content replacement and explicit mode transitions must never retain a stale anchor.
     pub(super) fn clear_vim_visual(&mut self) {
         self.vim_visual_anchor = None;
-        if self.vim_mode == VimMode::Visual {
+        if matches!(self.vim_mode, VimMode::Visual | VimMode::VisualLine) {
             self.vim_mode = VimMode::Normal;
         }
     }
@@ -54,6 +58,13 @@ impl TextArea {
         }
         let anchor = self.vim_visual_item_start(self.vim_visual_anchor?);
         let cursor = self.vim_visual_item_start(self.cursor_pos);
+        if self.vim_mode == VimMode::VisualLine {
+            let start = self.beginning_of_line(anchor.min(cursor));
+            let end = self.end_of_line(anchor.max(cursor));
+            return Some(self.expand_range_to_element_boundaries(
+                start..end + usize::from(end < self.text.len()),
+            ));
+        }
         Some(anchor.min(cursor)..self.next_atomic_boundary(anchor.max(cursor)))
     }
 
@@ -93,8 +104,19 @@ impl TextArea {
             self.handle_vim_pending_command(pending, event);
             return;
         }
-        if self.vim_normal_keymap.enter_visual.is_pressed(event) {
-            self.enter_vim_normal_mode();
+        let mode = if self.vim_normal_keymap.enter_visual.is_pressed(event) {
+            Some(VimMode::Visual)
+        } else if self.vim_normal_keymap.enter_visual_line.is_pressed(event) {
+            Some(VimMode::VisualLine)
+        } else {
+            None
+        };
+        if let Some(mode) = mode {
+            if self.vim_mode == mode {
+                self.enter_vim_normal_mode();
+            } else {
+                self.enter_vim_visual_mode(mode);
+            }
             return;
         }
         if let Some(operator) = self.vim_visual_operator(event) {
@@ -119,6 +141,7 @@ impl TextArea {
             && event.code != KeyCode::Esc
             && !self.vim_normal_keymap.cancel_operator.is_pressed(event)
             && !self.vim_normal_keymap.enter_visual.is_pressed(event)
+            && !self.vim_normal_keymap.enter_visual_line.is_pressed(event)
             && matches!(
                 self.vim_visual_operator(event),
                 Some(VimOperator::Delete | VimOperator::Change)
@@ -150,7 +173,9 @@ impl TextArea {
             .bytes()
             .filter(|byte| *byte == b'\n')
             .count();
-        let shape = if lines == 0 {
+        let shape = if self.vim_mode == VimMode::VisualLine {
+            VimVisualShape::Linewise { lines: lines + 1 }
+        } else if lines == 0 {
             VimVisualShape::SingleLine {
                 width: self.vim_visual_atomic_width(range.start..range.end),
             }
@@ -163,7 +188,18 @@ impl TextArea {
         self.enter_vim_normal_mode();
         self.set_cursor(range.start);
         match operator {
-            VimOperator::Yank => self.yank_range(range),
+            VimOperator::Yank => {
+                if matches!(shape, VimVisualShape::Linewise { .. }) {
+                    let mut selected = self.text[range].to_owned();
+                    // The final empty line has no byte of its own but belongs in the register.
+                    if endpoint == self.text.len() && self.beginning_of_line(endpoint) == endpoint {
+                        selected.push('\n');
+                    }
+                    self.store_kill_buffer(selected, KillBufferKind::Linewise);
+                } else {
+                    self.yank_range(range);
+                }
+            }
             VimOperator::Delete => {
                 self.start_vim_edit(VimAction::Delete(VimEditTarget::Visual(shape)));
             }
@@ -191,6 +227,10 @@ impl TextArea {
     ) -> bool {
         let start = self.vim_visual_item_start(self.cursor_pos);
         let (mut end, width) = match shape {
+            VimVisualShape::Linewise { lines } => {
+                self.set_cursor(self.beginning_of_line(start));
+                return self.apply_vim_counted_target(operator, VimEditTarget::Line, lines);
+            }
             VimVisualShape::SingleLine { width } => (start, width),
             VimVisualShape::MultiLine { lines, column } => {
                 let mut line = self.beginning_of_line(start);

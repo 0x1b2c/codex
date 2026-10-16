@@ -312,7 +312,7 @@ impl TextArea {
             match action {
                 VimAction::Delete(target) | VimAction::Change(target) => {
                     match target {
-                        // Vim preserves a characterwise Visual shape even with a dot count.
+                        // Vim preserves the Visual selection shape even with a dot count.
                         VimEditTarget::Visual(_) => {}
                         VimEditTarget::Counted {
                             count: recorded, ..

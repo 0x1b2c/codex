@@ -291,3 +291,153 @@ fn visual_operator_binding_is_literal_during_a_pending_find() {
     t.input(KeyEvent::from(KeyCode::Esc));
     assert!(t.vim_visual_range().is_none());
 }
+
+#[test]
+fn visual_line_selection_tracks_whole_lines_in_both_directions_and_switches_shape() {
+    let mut t = textarea("abc\ndef\nghi", 5);
+    keys(&mut t, "V");
+    assert_eq!(t.vim_visual_range(), Some(4..8));
+    assert_eq!(t.vim_mode_label(), Some("Visual Line"));
+    keys(&mut t, "j");
+    assert_eq!(t.vim_visual_range(), Some(4..11));
+    keys(&mut t, "kk");
+    assert_eq!(t.vim_visual_range(), Some(0..8));
+    keys(&mut t, "v");
+    assert_eq!(t.vim_visual_range(), Some(1..6));
+    keys(&mut t, "V");
+    assert_eq!(t.vim_visual_range(), Some(0..8));
+    keys(&mut t, "V");
+    assert!(t.is_vim_normal_mode());
+    assert!(t.vim_visual_range().is_none());
+    assert_eq!(t.text(), "abc\ndef\nghi");
+}
+
+#[test]
+fn visual_line_operators_use_linewise_ranges_and_dot_keeps_the_line_count() {
+    for (cursor, sequence) in [(1, "Vjd"), (5, "Vkd")] {
+        let mut t = textarea("abc\ndef\nghi\njkl\nmno", cursor);
+        keys(&mut t, sequence);
+        assert_eq!(t.text(), "ghi\njkl\nmno");
+        assert_eq!(t.kill_buffer, "abc\ndef\n");
+        assert_eq!(t.kill_buffer_kind, super::super::KillBufferKind::Linewise);
+        keys(&mut t, "3.");
+        assert_eq!(t.text(), "mno");
+        assert_eq!(t.kill_buffer, "ghi\njkl\n");
+        assert!(t.is_vim_normal_mode());
+    }
+    let mut t = textarea("abc\ndef\nghi", 5);
+    keys(&mut t, "Vjy");
+    assert_eq!(t.text(), "abc\ndef\nghi");
+    assert_eq!(t.kill_buffer, "def\nghi");
+    assert_eq!(t.kill_buffer_kind, super::super::KillBufferKind::Linewise);
+    assert!(t.vim_commands.last_change.is_empty());
+    keys(&mut t, "p");
+    assert_eq!(t.text(), "abc\ndef\ndef\nghi\nghi");
+}
+
+#[test]
+fn visual_line_change_preserves_following_empty_line_and_replays_insert_session() {
+    for (text, command, expected) in [
+        ("one\ntwo\nthree", "VjcXY", "XY\nthree"),
+        ("one\n", "VcXY", "XY\n"),
+        ("one\n", "VjcXY", "XY"),
+        ("one", "VcXY", "XY"),
+        ("\n\nlast", "VjcXY", "XY\nlast"),
+        ("", "VcXY", "XY"),
+    ] {
+        let mut t = textarea(text, 0);
+        keys(&mut t, command);
+        assert_eq!(t.text(), expected);
+        assert_eq!(t.kill_buffer_kind, super::super::KillBufferKind::Linewise);
+        assert_eq!(t.vim_mode_label(), Some("Insert"));
+        t.input(KeyEvent::from(KeyCode::Esc));
+        assert!(t.is_vim_normal_mode());
+    }
+    let mut t = textarea("one\ntwo\nthree\nfour\nfive", 1);
+    keys(&mut t, "VjcXY");
+    t.input(KeyEvent::from(KeyCode::Esc));
+    t.set_cursor(4);
+    keys(&mut t, ".");
+    assert_eq!(t.text(), "XY\nXY\nfive");
+    assert_eq!(t.kill_buffer, "three\nfour\n");
+}
+
+#[test]
+fn visual_line_empty_and_final_lines_keep_valid_ranges_and_linewise_registers() {
+    for (text, cursor, range, register) in [
+        ("", 0, 0..0, "\n"),
+        ("\n", 0, 0..1, "\n"),
+        ("a\n", 2, 2..2, "\n"),
+        ("a\nlast", 3, 2..6, "last"),
+        ("a\n\nz", 2, 2..3, "\n"),
+    ] {
+        let mut t = textarea(text, cursor);
+        keys(&mut t, "V");
+        assert_eq!(t.vim_visual_range(), Some(range));
+        keys(&mut t, "y");
+        assert_eq!(t.kill_buffer, register);
+        assert_eq!(t.kill_buffer_kind, super::super::KillBufferKind::Linewise);
+        assert_eq!(t.text(), text);
+    }
+    let mut t = textarea("a\nlast", 3);
+    keys(&mut t, "Vd");
+    assert_eq!(t.text(), "a\n");
+    assert_eq!(t.kill_buffer, "last");
+    let mut t = textarea("a\n", 0);
+    keys(&mut t, "Vjy");
+    assert_eq!(t.kill_buffer, "a\n\n");
+    keys(&mut t, "p");
+    assert_eq!(t.text(), "a\na\n\n");
+}
+
+#[test]
+fn visual_line_render_highlights_full_content_and_newlines_including_empty_eof() {
+    let mut t = textarea("abc\ndef\n", 1);
+    keys(&mut t, "V2j");
+    let area = Rect::new(0, 0, 5, 3);
+    let mut buf = Buffer::empty(area);
+    StatefulWidgetRef::render_ref(&&t, area, &mut buf, &mut TextAreaState::default());
+    for (y, width) in [(0, 4), (1, 4), (2, 1)] {
+        for x in 0..width {
+            assert!(
+                buf[(x, y)]
+                    .style()
+                    .add_modifier
+                    .contains(Modifier::REVERSED)
+            );
+        }
+    }
+    t.input(KeyEvent::from(KeyCode::Esc));
+    assert!(t.vim_visual_range().is_none());
+}
+
+#[test]
+fn visual_line_entry_is_configurable_including_digits_and_shift_v() {
+    let mut t = textarea("abc\ndef\nghi", 1);
+    t.input(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::SHIFT));
+    assert_eq!(t.vim_mode_label(), Some("Visual Line"));
+    t.input(KeyEvent::from(KeyCode::Esc));
+    let mut config = codex_config::types::TuiKeymap::default();
+    config.vim_normal.enter_visual_line = Some(codex_config::types::KeybindingsSpec::One(
+        codex_config::types::KeybindingSpec("2".to_owned()),
+    ));
+    t.set_keymap_bindings(&RuntimeKeymap::from_config(&config).unwrap());
+    keys(&mut t, "2j");
+    assert_eq!(t.vim_visual_range(), Some(0..8));
+    keys(&mut t, "2");
+    assert!(t.is_vim_normal_mode());
+    keys(&mut t, "v2");
+    assert_eq!(t.vim_mode_label(), Some("Visual Line"));
+}
+
+#[test]
+fn visual_line_navigation_and_deletion_preserve_graphemes_and_atomic_elements() {
+    let mut t = textarea("e\u{301}", "e\u{301}".len());
+    t.insert_element("<element>");
+    t.insert_str("\n\nlast");
+    t.set_cursor(0);
+    keys(&mut t, "Vjld");
+    assert_eq!(t.text(), "last");
+    assert_eq!(t.kill_buffer, "e\u{301}<element>\n\n");
+    assert!(t.elements.is_empty());
+}

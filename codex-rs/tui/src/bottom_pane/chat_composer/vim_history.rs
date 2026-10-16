@@ -129,6 +129,7 @@ impl ChatComposer {
             && !self.draft.textarea.is_vim_operator_pending()
             && (self.draft.textarea.wants_vim_count_key(event)
                 || self.vim_normal_keymap.enter_visual.is_pressed(event)
+                || self.vim_normal_keymap.enter_visual_line.is_pressed(event)
                 || self.vim_normal_keymap.move_left.is_pressed(event)
                 || self.vim_normal_keymap.move_right.is_pressed(event)
                 || self.vim_normal_keymap.move_up.is_pressed(event)

@@ -10,6 +10,8 @@ pub(super) enum VimMode {
     Normal,
     /// Visual mode extends an inclusive character selection with Normal-mode motions.
     Visual,
+    /// Visual Line mode extends a whole-line selection with Normal-mode motions.
+    VisualLine,
     /// Insert mode routes input through the regular editor keymap until Escape is pressed.
     Insert,
     /// Replace mode overwrites existing graphemes through the regular editor keymap.

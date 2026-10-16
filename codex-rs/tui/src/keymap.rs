@@ -221,6 +221,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) open_line_below: Vec<KeyBinding>,
     pub(crate) open_line_above: Vec<KeyBinding>,
     pub(crate) enter_visual: Vec<KeyBinding>,
+    pub(crate) enter_visual_line: Vec<KeyBinding>,
     pub(crate) enter_replace_mode: Vec<KeyBinding>,
     pub(crate) move_left: Vec<KeyBinding>,
     pub(crate) move_right: Vec<KeyBinding>,
@@ -870,6 +871,7 @@ impl RuntimeKeymap {
             open_line_below: resolve_local!(keymap, defaults, vim_normal, open_line_below),
             open_line_above: resolve_local!(keymap, defaults, vim_normal, open_line_above),
             enter_visual: resolve_local!(keymap, defaults, vim_normal, enter_visual),
+            enter_visual_line: resolve_local!(keymap, defaults, vim_normal, enter_visual_line),
             enter_replace_mode: resolve_local!(keymap, defaults, vim_normal, enter_replace_mode),
             move_left: resolve_local!(keymap, defaults, vim_normal, move_left),
             move_right: resolve_local!(keymap, defaults, vim_normal, move_right),
@@ -964,6 +966,10 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.enter_visual.as_ref(),
                 vim_normal.enter_visual.as_slice(),
+            ),
+            (
+                keymap.vim_normal.enter_visual_line.as_ref(),
+                vim_normal.enter_visual_line.as_slice(),
             ),
             (
                 keymap.vim_normal.enter_replace_mode.as_ref(),
@@ -1820,6 +1826,10 @@ impl RuntimeKeymap {
                 &mut resolved.vim_normal.enter_visual,
             ),
             (
+                keymap.vim_normal.enter_visual_line.as_ref(),
+                &mut resolved.vim_normal.enter_visual_line,
+            ),
+            (
                 keymap.vim_normal.enter_replace_mode.as_ref(),
                 &mut resolved.vim_normal.enter_replace_mode,
             ),
@@ -1983,6 +1993,10 @@ impl RuntimeKeymap {
                     plain(KeyCode::Char('O'))
                 ],
                 enter_visual: default_bindings![plain(KeyCode::Char('v'))],
+                enter_visual_line: default_bindings![
+                    shift(KeyCode::Char('v')),
+                    plain(KeyCode::Char('V'))
+                ],
                 enter_replace_mode: default_bindings![
                     shift(KeyCode::Char('r')),
                     plain(KeyCode::Char('R'))
@@ -3659,6 +3673,7 @@ mod tests {
     fn configured_legacy_bindings_prune_new_vim_defaults() {
         for (key, new_action) in [
             ("v", "enter_visual"),
+            ("shift-v", "enter_visual_line"),
             ("u", "undo"),
             ("ctrl-r", "redo"),
             ("shift-r", "enter_replace_mode"),
