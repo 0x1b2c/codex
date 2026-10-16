@@ -10,4 +10,6 @@ Follow the global `AGENTS.md`. The current handoff concerns TUI response renderi
 
 The user builds and tests the application manually. During this round of collaboration, do not run `just build`, Cargo/Bazel builds, or Rust tests. Follow any new user instructions that change this verification arrangement. Preserve the user's existing changes, especially the `Cargo.lock` differences recorded in `STATE.md`.
 
+When the user authorizes compilation or Rust tests, use release builds for development and verification too. Cargo commands that compile code (`build`, `test`, `check`, `clippy`, and `run`) must specify `--release`; `just build` already defaults to release. For Bazel, use `--compilation_mode=opt`. Use another profile only when the user explicitly requests it. Avoid creating a second set of dev/test artifacts, and preserve existing shared caches.
+
 This `AGENTS.md` and `STATE.md` record local collaboration state. Keep them local and out of feature commits. Do not accumulate session state in the global `AGENTS.md`.
