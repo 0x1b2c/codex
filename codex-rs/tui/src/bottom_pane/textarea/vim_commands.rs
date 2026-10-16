@@ -489,10 +489,13 @@ impl TextArea {
                         }
                     }
                     VimEditTarget::TextObject { scope, object } => {
-                        let Some(range) = self.text_object_range(object, scope) else {
+                        if !self.apply_vim_counted_target(
+                            operator,
+                            VimEditTarget::TextObject { scope, object },
+                            1,
+                        ) {
                             return false;
-                        };
-                        self.apply_vim_operator_to_range(operator, range);
+                        }
                     }
                     VimEditTarget::Find { motion, target } => {
                         if !self.find_vim_character(motion, Some(operator), target) {

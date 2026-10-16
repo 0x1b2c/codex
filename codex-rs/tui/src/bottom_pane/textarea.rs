@@ -1133,9 +1133,7 @@ impl TextArea {
                 }));
             }
             VimOperator::Yank => {
-                if let Some(range) = self.text_object_range(object, scope) {
-                    self.apply_vim_operator_to_range(op, range);
-                }
+                self.apply_vim_counted_target(op, VimEditTarget::TextObject { scope, object }, 1);
             }
         }
         true

@@ -6,6 +6,7 @@ use super::VimMode;
 use super::VimMotion;
 use super::VimOperator;
 use super::VimPending;
+use super::VimTextObject;
 use super::vim_commands::VimAction;
 use super::vim_commands::VimEditTarget;
 use super::vim_counts::WordDestination;
@@ -189,6 +190,9 @@ impl TextArea {
                 (range, false)
             }
             VimEditTarget::TextObject { scope, object } => {
+                if object == VimTextObject::Paragraph {
+                    return self.apply_vim_paragraph_object(op, scope, count);
+                }
                 let Some(range) = self.vim_counted_text_object_range(object, scope, count) else {
                     return false;
                 };

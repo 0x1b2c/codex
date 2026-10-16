@@ -311,6 +311,7 @@ pub(crate) struct VimOperatorKeymap {
 pub(crate) struct VimTextObjectKeymap {
     pub(crate) word: Vec<KeyBinding>,
     pub(crate) big_word: Vec<KeyBinding>,
+    pub(crate) paragraph: Vec<KeyBinding>,
     pub(crate) parentheses: Vec<KeyBinding>,
     pub(crate) brackets: Vec<KeyBinding>,
     pub(crate) braces: Vec<KeyBinding>,
@@ -1588,6 +1589,7 @@ impl RuntimeKeymap {
         let vim_text_object = VimTextObjectKeymap {
             word: resolve_local!(keymap, defaults, vim_text_object, word),
             big_word: resolve_local!(keymap, defaults, vim_text_object, big_word),
+            paragraph: resolve_local!(keymap, defaults, vim_text_object, paragraph),
             parentheses: resolve_local!(keymap, defaults, vim_text_object, parentheses),
             brackets: resolve_local!(keymap, defaults, vim_text_object, brackets),
             braces: resolve_local!(keymap, defaults, vim_text_object, braces),
@@ -2239,6 +2241,7 @@ impl RuntimeKeymap {
             vim_text_object: VimTextObjectKeymap {
                 word: default_bindings![plain(KeyCode::Char('w'))],
                 big_word: default_bindings![shift(KeyCode::Char('w')), plain(KeyCode::Char('W'))],
+                paragraph: default_bindings![plain(KeyCode::Char('p'))],
                 parentheses: default_bindings![
                     plain(KeyCode::Char('(')),
                     shift(KeyCode::Char('(')),
@@ -4593,6 +4596,28 @@ mod tests {
         assert!(runtime.vim_operator.motion_reverse_find.is_empty());
         keymap.vim_normal.repeat_find = Some(one(";"));
         expect_conflict(&keymap, "move_left", "repeat_find");
+    }
+
+    #[test]
+    fn paragraph_object_bindings_support_remapping_without_changing_normal_paste() {
+        let defaults = RuntimeKeymap::defaults();
+        assert_eq!(
+            defaults.vim_text_object.paragraph,
+            vec![key_hint::plain(KeyCode::Char('p'))]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_text_object.paragraph = Some(one("2"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("paragraph object should parse");
+        assert_eq!(
+            runtime.vim_text_object.paragraph,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        assert_eq!(
+            runtime.vim_normal.paste_after,
+            defaults.vim_normal.paste_after
+        );
+        config.vim_text_object.word = Some(one("2"));
+        expect_conflict(&config, "word", "paragraph");
     }
 
     #[test]

@@ -76,6 +76,7 @@ pub(super) enum VimTextObjectScope {
 pub(super) enum VimTextObject {
     Word,
     BigWord,
+    Paragraph,
     Parentheses,
     Brackets,
     Braces,
@@ -113,6 +114,9 @@ impl TextArea {
         if self.vim_text_object_keymap.big_word.is_pressed(event) {
             return Some(VimTextObject::BigWord);
         }
+        if self.vim_text_object_keymap.paragraph.is_pressed(event) {
+            return Some(VimTextObject::Paragraph);
+        }
         if self.vim_text_object_keymap.parentheses.is_pressed(event) {
             return Some(VimTextObject::Parentheses);
         }
@@ -142,6 +146,7 @@ impl TextArea {
         match object {
             VimTextObject::Word => self.word_text_object_range(scope, VimWordKind::Word),
             VimTextObject::BigWord => self.word_text_object_range(scope, VimWordKind::BigWord),
+            VimTextObject::Paragraph => self.vim_paragraph_text_object_range(scope, 1),
             VimTextObject::Parentheses => self.paired_text_object_range(scope, '(', ')'),
             VimTextObject::Brackets => self.paired_text_object_range(scope, '[', ']'),
             VimTextObject::Braces => self.paired_text_object_range(scope, '{', '}'),

@@ -456,6 +456,8 @@ pub struct TuiVimTextObjectKeymap {
     pub word: Option<KeybindingsSpec>,
     /// Text object: whitespace-delimited WORD.
     pub big_word: Option<KeybindingsSpec>,
+    /// Text object: paragraph.
+    pub paragraph: Option<KeybindingsSpec>,
     /// Text object: parentheses.
     pub parentheses: Option<KeybindingsSpec>,
     /// Text object: brackets.

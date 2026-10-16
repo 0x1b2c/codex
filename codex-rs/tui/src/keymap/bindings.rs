@@ -409,6 +409,7 @@ define_runtime_action_bindings! {
     "vim_text_object" => VimTextObject, vim_text_object, vim_text_object [
         word,
         big_word,
+        paragraph,
         parentheses,
         brackets,
         braces,

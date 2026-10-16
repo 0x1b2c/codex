@@ -25,6 +25,7 @@ impl TextArea {
                 };
                 self.vim_counted_word_object_range(scope, kind, count)
             }
+            VimTextObject::Paragraph => self.vim_paragraph_text_object_range(scope, count),
             VimTextObject::Parentheses => {
                 self.paired_text_object_range_count(scope, '(', ')', count)
             }

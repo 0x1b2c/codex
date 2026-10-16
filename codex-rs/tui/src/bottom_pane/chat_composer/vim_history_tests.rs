@@ -49,6 +49,56 @@ fn ctrl_r(composer: &mut ChatComposer) {
 }
 
 #[test]
+fn paragraph_objects_and_their_replays_form_single_undo_transactions() {
+    for (original, cursor, command, changed) in [
+        ("a\n\nb", 0, "dip", "\nb"),
+        ("a\n\nb", 3, "dap", "a"),
+        ("a\n\n", 2, "dip", "a"),
+        ("a\n\nb", 0, "cipXY", "XY\n\nb"),
+        ("a\n\nb", 3, "capXY", "a\nXY"),
+        ("", 0, "cipXY", "XY"),
+        ("a\n\nb\n\nc", 0, "c2apXY", "XY\nc"),
+    ] {
+        let mut composer = vim_composer(original);
+        composer.draft.textarea.set_cursor(cursor);
+        keys(&mut composer, command);
+        escape(&mut composer);
+        assert_eq!(composer.current_text(), changed, "{command}");
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), original);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), changed);
+    }
+    let mut composer = vim_composer("a\n\nb\nbb\n\nc");
+    keys(&mut composer, "cipXY");
+    escape(&mut composer);
+    composer.draft.textarea.set_cursor(4);
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "XY\n\nXY\n\nc");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "XY\n\nb\nbb\n\nc");
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "XY\n\nXY\n\nc");
+}
+
+#[test]
+fn paragraph_object_failure_and_cancellation_preserve_redo_and_last_change() {
+    let mut composer = vim_composer("abc");
+    keys(&mut composer, "xu");
+    keys(&mut composer, "d2ip");
+    keys(&mut composer, "2di");
+    escape(&mut composer);
+    assert_eq!(composer.current_text(), "abc");
+    assert!(composer.vim_history.undo.is_empty());
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "bc");
+}
+
+#[test]
 fn normal_and_visual_joins_and_dot_each_form_one_undo_transaction() {
     for (command, joined) in [
         ("3J", "a b c\nd\ne"),
