@@ -1247,3 +1247,37 @@ fn digit_bound_matching_pair_operator_preserves_undo_transactions() {
     keys(&mut composer, "u");
     assert_eq!(composer.current_text(), "x(a) tail");
 }
+
+#[test]
+fn paragraph_edits_have_single_undo_transactions_and_navigation_preserves_redo() {
+    for (command, edited) in [("d}", "\nb\n\nc"), ("c}NEW", "NEW\n\nb\n\nc")] {
+        let mut composer = vim_composer("a\n\nb\n\nc");
+        keys(&mut composer, command);
+        escape(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+        assert_eq!(composer.vim_history.undo.len(), 1);
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), "a\n\nb\n\nc");
+        keys(&mut composer, "2}{{y}");
+        assert!(composer.vim_history.pending.is_none());
+        assert_eq!(composer.vim_history.redo.len(), 1);
+        ctrl_r(&mut composer);
+        assert_eq!(composer.current_text(), edited);
+    }
+    let mut composer = vim_composer("a\n\nb\n\nc");
+    keys(&mut composer, "d}.");
+    assert_eq!(composer.current_text(), "\nc");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "\nb\n\nc");
+    let mut composer = vim_composer("a\n\nb");
+    let mut config = TuiKeymap::default();
+    config.vim_operator.motion_paragraph_forward =
+        Some(KeybindingsSpec::One(KeybindingSpec("2".to_owned())));
+    composer.set_keymap_bindings(&RuntimeKeymap::from_config(&config).unwrap());
+    keys(&mut composer, "d2");
+    assert_eq!(composer.current_text(), "\nb");
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "a\n\nb");
+}

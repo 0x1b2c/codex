@@ -4850,6 +4850,8 @@
               "move_left": null,
               "move_line_end": null,
               "move_line_start": null,
+              "move_paragraph_backward": null,
+              "move_paragraph_forward": null,
               "move_right": null,
               "move_up": null,
               "move_word_backward": null,
@@ -4890,6 +4892,8 @@
               "motion_line_end": null,
               "motion_line_start": null,
               "motion_match_pair": null,
+              "motion_paragraph_backward": null,
+              "motion_paragraph_forward": null,
               "motion_repeat_find": null,
               "motion_reverse_find": null,
               "motion_right": null,
@@ -5898,6 +5902,8 @@
             "move_left": null,
             "move_line_end": null,
             "move_line_start": null,
+            "move_paragraph_backward": null,
+            "move_paragraph_forward": null,
             "move_right": null,
             "move_up": null,
             "move_word_backward": null,
@@ -5945,6 +5951,8 @@
             "motion_line_end": null,
             "motion_line_start": null,
             "motion_match_pair": null,
+            "motion_paragraph_backward": null,
+            "motion_paragraph_forward": null,
             "motion_repeat_find": null,
             "motion_reverse_find": null,
             "motion_right": null,
@@ -6432,6 +6440,22 @@
           ],
           "description": "Move cursor to start of line (`0`)."
         },
+        "move_paragraph_backward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to the previous paragraph boundary (`{`)."
+        },
+        "move_paragraph_forward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to the next paragraph boundary (`}`)."
+        },
         "move_right": {
           "allOf": [
             {
@@ -6742,6 +6766,22 @@
             }
           ],
           "description": "Operator motion to a matching bracket or a percentage line (`%`)."
+        },
+        "motion_paragraph_backward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to the previous paragraph boundary (`{`)."
+        },
+        "motion_paragraph_forward": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Move cursor to the next paragraph boundary (`}`)."
         },
         "motion_repeat_find": {
           "allOf": [

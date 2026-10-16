@@ -296,6 +296,8 @@ impl TextArea {
             &keys.repeat_find,
             &keys.reverse_find,
             &keys.match_pair,
+            &keys.move_paragraph_forward,
+            &keys.move_paragraph_backward,
             &keys.jump_top,
             &keys.jump_bottom,
         ]

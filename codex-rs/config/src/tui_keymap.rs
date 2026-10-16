@@ -317,6 +317,10 @@ pub struct TuiVimNormalKeymap {
     pub reverse_find: Option<KeybindingsSpec>,
     /// Jump to a matching bracket or a percentage line (`%`).
     pub match_pair: Option<KeybindingsSpec>,
+    /// Move cursor to the previous paragraph boundary (`{`).
+    pub move_paragraph_backward: Option<KeybindingsSpec>,
+    /// Move cursor to the next paragraph boundary (`}`).
+    pub move_paragraph_forward: Option<KeybindingsSpec>,
     /// Begin a jump to the first buffer line (`gg`).
     pub jump_top: Option<KeybindingsSpec>,
     /// Jump to the last buffer line (`G`).
@@ -412,6 +416,10 @@ pub struct TuiVimOperatorKeymap {
     pub motion_reverse_find: Option<KeybindingsSpec>,
     /// Operator motion to a matching bracket or a percentage line (`%`).
     pub motion_match_pair: Option<KeybindingsSpec>,
+    /// Move cursor to the previous paragraph boundary (`{`).
+    pub motion_paragraph_backward: Option<KeybindingsSpec>,
+    /// Move cursor to the next paragraph boundary (`}`).
+    pub motion_paragraph_forward: Option<KeybindingsSpec>,
     /// Motion: begin a jump to the first buffer line (`gg`).
     pub motion_jump_top: Option<KeybindingsSpec>,
     /// Motion: jump to the last buffer line (`G`).

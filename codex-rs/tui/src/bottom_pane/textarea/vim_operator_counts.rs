@@ -22,6 +22,9 @@ impl TextArea {
             && (self.vim_count.is_some()
                 || digit != 0
                     && !self.vim_operator_keymap.motion_match_pair.is_pressed(event)
+                    && self
+                        .vim_paragraph_for_event(event, /*operator*/ true)
+                        .is_none()
                     && self.vim_motion_for_event(event).is_none()
                     && self
                         .vim_repeat_find_for_event(event, /*operator*/ true)
@@ -55,6 +58,10 @@ impl TextArea {
         }
         if let Some(reverse) = self.vim_repeat_find_for_event(event, /*operator*/ true) {
             self.repeat_vim_find(reverse, Some(op), count);
+            return true;
+        }
+        if let Some(forward) = self.vim_paragraph_for_event(event, /*operator*/ true) {
+            self.start_vim_counted_operator(op, VimEditTarget::Paragraph { forward }, count);
             return true;
         }
         if self.vim_operator_keymap.motion_match_pair.is_pressed(event) {
@@ -145,12 +152,19 @@ impl TextArea {
         let origin = self.cursor_pos;
         let preferred = self.preferred_col;
         let line_count = matches!(target, VimEditTarget::Line).then_some(count);
+        let paragraph = matches!(target, VimEditTarget::Paragraph { .. });
         let clamp_delete = matches!(
             target,
             VimEditTarget::Character | VimEditTarget::Motion(VimMotion::LineEnd)
         );
         let (range, linewise) = match target {
             VimEditTarget::MatchPair => return self.apply_vim_matching_pair(op),
+            VimEditTarget::Paragraph { forward } => {
+                let Some(range) = self.vim_paragraph_operator_range(forward, count, op) else {
+                    return false;
+                };
+                range
+            }
             VimEditTarget::PercentageLine => {
                 let Some(start) = self.vim_percentage_line(count) else {
                     return false;
@@ -315,6 +329,7 @@ impl TextArea {
                     let removed = &self.text[range.clone()];
                     let retain_newline = removed.ends_with('\n')
                         && (range.end < self.text.len()
+                            || paragraph
                             || line_count.is_some_and(|count| {
                                 count <= removed.bytes().filter(|byte| *byte == b'\n').count()
                             }));
@@ -362,6 +377,9 @@ impl TextArea {
                         self.vim_count.is_some()
                             || digit != 0
                                 && !self.vim_operator_keymap.motion_match_pair.is_pressed(event)
+                                && self
+                                    .vim_paragraph_for_event(event, /*operator*/ true)
+                                    .is_none()
                                 && self
                                     .vim_repeat_find_for_event(event, /*operator*/ true)
                                     .is_none()

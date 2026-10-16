@@ -67,6 +67,7 @@ mod vim_horizontal_tests;
 mod vim_join;
 mod vim_match_pair;
 mod vim_operator_counts;
+mod vim_paragraph;
 mod vim_repeat_find;
 mod vim_search;
 mod vim_text_object_counts;

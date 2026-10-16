@@ -60,6 +60,9 @@ pub(super) enum VimEditTarget {
     LineEnd,
     Motion(VimMotion),
     MatchPair,
+    Paragraph {
+        forward: bool,
+    },
     PercentageLine,
     Search(SearchQuery),
     TextObject {
@@ -437,6 +440,15 @@ impl TextArea {
                     }
                     VimEditTarget::MatchPair => {
                         if !self.apply_vim_matching_pair(operator) {
+                            return false;
+                        }
+                    }
+                    VimEditTarget::Paragraph { forward } => {
+                        if !self.apply_vim_counted_target(
+                            operator,
+                            VimEditTarget::Paragraph { forward },
+                            1,
+                        ) {
                             return false;
                         }
                     }

@@ -243,6 +243,8 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) repeat_find: Vec<KeyBinding>,
     pub(crate) reverse_find: Vec<KeyBinding>,
     pub(crate) match_pair: Vec<KeyBinding>,
+    pub(crate) move_paragraph_backward: Vec<KeyBinding>,
+    pub(crate) move_paragraph_forward: Vec<KeyBinding>,
     pub(crate) jump_top: Vec<KeyBinding>,
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) delete_char: Vec<KeyBinding>,
@@ -295,6 +297,8 @@ pub(crate) struct VimOperatorKeymap {
     pub(crate) motion_repeat_find: Vec<KeyBinding>,
     pub(crate) motion_reverse_find: Vec<KeyBinding>,
     pub(crate) motion_match_pair: Vec<KeyBinding>,
+    pub(crate) motion_paragraph_backward: Vec<KeyBinding>,
+    pub(crate) motion_paragraph_forward: Vec<KeyBinding>,
     pub(crate) motion_jump_top: Vec<KeyBinding>,
     pub(crate) motion_jump_bottom: Vec<KeyBinding>,
     pub(crate) select_inner_text_object: Vec<KeyBinding>,
@@ -906,6 +910,18 @@ impl RuntimeKeymap {
             repeat_find: resolve_local!(keymap, defaults, vim_normal, repeat_find),
             reverse_find: resolve_local!(keymap, defaults, vim_normal, reverse_find),
             match_pair: resolve_local!(keymap, defaults, vim_normal, match_pair),
+            move_paragraph_backward: resolve_local!(
+                keymap,
+                defaults,
+                vim_normal,
+                move_paragraph_backward
+            ),
+            move_paragraph_forward: resolve_local!(
+                keymap,
+                defaults,
+                vim_normal,
+                move_paragraph_forward
+            ),
             jump_top: resolve_local!(keymap, defaults, vim_normal, jump_top),
             jump_bottom: resolve_local!(keymap, defaults, vim_normal, jump_bottom),
             delete_char: resolve_local!(keymap, defaults, vim_normal, delete_char),
@@ -1059,6 +1075,14 @@ impl RuntimeKeymap {
             (
                 keymap.vim_normal.match_pair.as_ref(),
                 vim_normal.match_pair.as_slice(),
+            ),
+            (
+                keymap.vim_normal.move_paragraph_backward.as_ref(),
+                vim_normal.move_paragraph_backward.as_slice(),
+            ),
+            (
+                keymap.vim_normal.move_paragraph_forward.as_ref(),
+                vim_normal.move_paragraph_forward.as_slice(),
             ),
             (
                 keymap.vim_normal.jump_top.as_ref(),
@@ -1231,6 +1255,14 @@ impl RuntimeKeymap {
                 &mut vim_normal.match_pair,
             ),
             (
+                keymap.vim_normal.move_paragraph_backward.as_ref(),
+                &mut vim_normal.move_paragraph_backward,
+            ),
+            (
+                keymap.vim_normal.move_paragraph_forward.as_ref(),
+                &mut vim_normal.move_paragraph_forward,
+            ),
+            (
                 keymap.vim_normal.jump_top.as_ref(),
                 &mut vim_normal.jump_top,
             ),
@@ -1327,6 +1359,18 @@ impl RuntimeKeymap {
                 motion_reverse_find
             ),
             motion_match_pair: resolve_local!(keymap, defaults, vim_operator, motion_match_pair),
+            motion_paragraph_backward: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_paragraph_backward
+            ),
+            motion_paragraph_forward: resolve_local!(
+                keymap,
+                defaults,
+                vim_operator,
+                motion_paragraph_forward
+            ),
             motion_jump_top: resolve_local!(keymap, defaults, vim_operator, motion_jump_top),
             motion_jump_bottom: resolve_local!(keymap, defaults, vim_operator, motion_jump_bottom),
             select_inner_text_object: resolve_local!(
@@ -1434,6 +1478,14 @@ impl RuntimeKeymap {
                 vim_operator.motion_match_pair.as_slice(),
             ),
             (
+                keymap.vim_operator.motion_paragraph_backward.as_ref(),
+                vim_operator.motion_paragraph_backward.as_slice(),
+            ),
+            (
+                keymap.vim_operator.motion_paragraph_forward.as_ref(),
+                vim_operator.motion_paragraph_forward.as_slice(),
+            ),
+            (
                 keymap.vim_operator.motion_jump_top.as_ref(),
                 vim_operator.motion_jump_top.as_slice(),
             ),
@@ -1504,6 +1556,14 @@ impl RuntimeKeymap {
             (
                 keymap.vim_operator.motion_match_pair.as_ref(),
                 &mut vim_operator.motion_match_pair,
+            ),
+            (
+                keymap.vim_operator.motion_paragraph_backward.as_ref(),
+                &mut vim_operator.motion_paragraph_backward,
+            ),
+            (
+                keymap.vim_operator.motion_paragraph_forward.as_ref(),
+                &mut vim_operator.motion_paragraph_forward,
             ),
             (
                 keymap.vim_operator.motion_jump_top.as_ref(),
@@ -2070,6 +2130,14 @@ impl RuntimeKeymap {
                 repeat_find: default_bindings![plain(KeyCode::Char(';'))],
                 reverse_find: default_bindings![plain(KeyCode::Char(','))],
                 match_pair: default_bindings![plain(KeyCode::Char('%')), shift(KeyCode::Char('%'))],
+                move_paragraph_backward: default_bindings![
+                    plain(KeyCode::Char('{')),
+                    shift(KeyCode::Char('{'))
+                ],
+                move_paragraph_forward: default_bindings![
+                    plain(KeyCode::Char('}')),
+                    shift(KeyCode::Char('}'))
+                ],
                 jump_top: default_bindings![],
                 jump_bottom: default_bindings![
                     shift(KeyCode::Char('g')),
@@ -2150,6 +2218,14 @@ impl RuntimeKeymap {
                 motion_match_pair: default_bindings![
                     plain(KeyCode::Char('%')),
                     shift(KeyCode::Char('%'))
+                ],
+                motion_paragraph_backward: default_bindings![
+                    plain(KeyCode::Char('{')),
+                    shift(KeyCode::Char('{'))
+                ],
+                motion_paragraph_forward: default_bindings![
+                    plain(KeyCode::Char('}')),
+                    shift(KeyCode::Char('}'))
                 ],
                 motion_jump_top: default_bindings![],
                 motion_jump_bottom: default_bindings![
@@ -4517,6 +4593,43 @@ mod tests {
         assert!(runtime.vim_operator.motion_reverse_find.is_empty());
         keymap.vim_normal.repeat_find = Some(one(";"));
         expect_conflict(&keymap, "move_left", "repeat_find");
+    }
+
+    #[test]
+    fn paragraph_bindings_support_remapping_and_preserve_explicit_legacy_bindings() {
+        let defaults = RuntimeKeymap::defaults();
+        assert!(
+            defaults
+                .vim_normal
+                .move_paragraph_forward
+                .contains(&key_hint::plain(KeyCode::Char('}')))
+        );
+        assert!(
+            defaults
+                .vim_operator
+                .motion_paragraph_backward
+                .contains(&key_hint::plain(KeyCode::Char('{')))
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_paragraph_forward = Some(one("2"));
+        config.vim_operator.motion_paragraph_backward = Some(one("3"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("paragraph bindings should parse");
+        assert_eq!(
+            runtime.vim_normal.move_paragraph_forward,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        assert_eq!(
+            runtime.vim_operator.motion_paragraph_backward,
+            vec![key_hint::plain(KeyCode::Char('3'))]
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_left = Some(one("}"));
+        config.vim_operator.motion_left = Some(one("{"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("legacy bindings should win");
+        assert!(runtime.vim_normal.move_paragraph_forward.is_empty());
+        assert!(runtime.vim_operator.motion_paragraph_backward.is_empty());
+        config.vim_normal.move_paragraph_forward = Some(one("}"));
+        expect_conflict(&config, "move_left", "move_paragraph_forward");
     }
 
     #[test]

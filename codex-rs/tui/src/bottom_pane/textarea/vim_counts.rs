@@ -55,6 +55,8 @@ impl TextArea {
             &keys.repeat_find,
             &keys.reverse_find,
             &keys.match_pair,
+            &keys.move_paragraph_forward,
+            &keys.move_paragraph_backward,
             &keys.jump_top,
             &keys.jump_bottom,
             &keys.delete_char,
@@ -89,6 +91,13 @@ impl TextArea {
                     .saturating_mul(10)
                     .saturating_add(digit),
             );
+            return true;
+        }
+        if let Some(forward) = self.vim_paragraph_for_event(event, /*operator*/ false) {
+            let count = self.vim_count.take().unwrap_or(1);
+            if let Some(target) = self.vim_paragraph_target(forward, count) {
+                self.set_cursor(target);
+            }
             return true;
         }
         let Some(count) = self.vim_count.take() else {
