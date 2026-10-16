@@ -250,6 +250,7 @@ pub(crate) struct VimNormalKeymap {
     pub(crate) delete_char: Vec<KeyBinding>,
     pub(crate) delete_before_cursor: Vec<KeyBinding>,
     pub(crate) replace_char: Vec<KeyBinding>,
+    pub(crate) select_register: Vec<KeyBinding>,
     pub(crate) repeat_last_change: Vec<KeyBinding>,
     pub(crate) substitute_char: Vec<KeyBinding>,
     pub(crate) substitute_line: Vec<KeyBinding>,
@@ -933,6 +934,7 @@ impl RuntimeKeymap {
                 delete_before_cursor
             ),
             replace_char: resolve_local!(keymap, defaults, vim_normal, replace_char),
+            select_register: resolve_local!(keymap, defaults, vim_normal, select_register),
             repeat_last_change: resolve_local!(keymap, defaults, vim_normal, repeat_last_change),
             substitute_char: resolve_local!(keymap, defaults, vim_normal, substitute_char),
             substitute_line: resolve_local!(keymap, defaults, vim_normal, substitute_line),
@@ -1114,6 +1116,10 @@ impl RuntimeKeymap {
                 vim_normal.substitute_line.as_slice(),
             ),
             (
+                keymap.vim_normal.select_register.as_ref(),
+                vim_normal.select_register.as_slice(),
+            ),
+            (
                 keymap.vim_normal.repeat_last_change.as_ref(),
                 vim_normal.repeat_last_change.as_slice(),
             ),
@@ -1173,6 +1179,15 @@ impl RuntimeKeymap {
         }
         if keymap.vim_normal.replace_char.is_none() {
             vim_normal.replace_char.retain(|binding| {
+                !configured_vim_normal_bindings_to_preserve.contains(binding)
+                    && !chords.bindings.iter().any(|chord| {
+                        chord.action.context == KeymapContext::VimNormal
+                            && chord.chord.prefix.parts() == binding.parts()
+                    })
+            });
+        }
+        if keymap.vim_normal.select_register.is_none() {
+            vim_normal.select_register.retain(|binding| {
                 !configured_vim_normal_bindings_to_preserve.contains(binding)
                     && !chords.bindings.iter().any(|chord| {
                         chord.action.context == KeymapContext::VimNormal
@@ -2151,6 +2166,7 @@ impl RuntimeKeymap {
                     plain(KeyCode::Char('X'))
                 ],
                 replace_char: default_bindings![plain(KeyCode::Char('r'))],
+                select_register: default_bindings![plain(KeyCode::Char('"'))],
                 repeat_last_change: default_bindings![plain(KeyCode::Char('.'))],
                 substitute_char: default_bindings![plain(KeyCode::Char('s'))],
                 substitute_line: default_bindings![
@@ -4702,6 +4718,36 @@ mod tests {
         );
         config.vim_normal.match_pair = Some(one("%"));
         expect_conflict(&config, "move_left", "match_pair");
+    }
+
+    #[test]
+    fn register_prefix_supports_rebinding_unbinding_and_legacy_conflicts() {
+        let mut config = TuiKeymap::default();
+        config.vim_normal.select_register = Some(one("2"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("register binding should parse");
+        assert_eq!(
+            runtime.vim_normal.select_register,
+            vec![key_hint::plain(KeyCode::Char('2'))]
+        );
+        config.vim_normal.select_register = Some(KeybindingsSpec::Many(vec![]));
+        assert!(
+            RuntimeKeymap::from_config(&config)
+                .unwrap()
+                .vim_normal
+                .select_register
+                .is_empty()
+        );
+        let mut config = TuiKeymap::default();
+        config.vim_normal.move_left = Some(one("\""));
+        assert!(
+            RuntimeKeymap::from_config(&config)
+                .unwrap()
+                .vim_normal
+                .select_register
+                .is_empty()
+        );
+        config.vim_normal.select_register = Some(one("\""));
+        expect_conflict(&config, "move_left", "select_register");
     }
 
     #[test]

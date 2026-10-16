@@ -196,7 +196,7 @@ impl TextArea {
             selected.push('\n');
         }
         if operator == VimOperator::Yank {
-            self.store_kill_buffer(selected, KillBufferKind::Linewise);
+            self.store_vim_yank(selected, KillBufferKind::Linewise);
             return true;
         }
         let replacement = if operator == VimOperator::Change && !includes_final_line {

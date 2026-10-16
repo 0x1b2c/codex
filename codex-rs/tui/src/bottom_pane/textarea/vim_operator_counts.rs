@@ -365,6 +365,12 @@ impl TextArea {
 
     /// Numeric/operator prefixes and yanks never begin an undo snapshot.
     pub(crate) fn vim_pending_key_may_edit(&self, event: KeyEvent) -> bool {
+        if self.vim_registers.waiting
+            || self.vim_normal_keymap.select_register.is_pressed(event)
+                && matches!(self.vim_pending, VimPending::None)
+        {
+            return false;
+        }
         if self.vim_query().is_some() {
             return event.code == KeyCode::Enter
                 && matches!(

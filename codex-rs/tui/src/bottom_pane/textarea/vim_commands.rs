@@ -28,15 +28,16 @@ pub(crate) enum VimEdit {
     Text(String),
 }
 
-/// Vim command recording and searches preserved across same-draft restoration.
+/// Vim command recording, searches, and registers preserved across same-draft restoration.
 #[derive(Debug, Default)]
 pub(crate) struct VimPersistentState {
     pub(crate) commands: VimCommandState,
     search: crate::vim_search::SearchQuery,
+    registers: super::vim_registers::VimRegisters,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct VimEditorEdit(VimAction);
+pub(crate) struct VimEditorEdit(VimAction, Option<char>);
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum VimInsertPosition {
@@ -215,6 +216,7 @@ impl TextArea {
     pub(crate) fn swap_vim_persistent_state(&mut self, state: &mut VimPersistentState) {
         std::mem::swap(&mut self.vim_commands, &mut state.commands);
         std::mem::swap(&mut self.vim_search.last, &mut state.search);
+        std::mem::swap(&mut self.vim_registers, &mut state.registers);
     }
 
     pub(crate) fn vim_repeat_actions(&self) -> Option<Vec<VimEdit>> {
@@ -276,7 +278,7 @@ impl TextArea {
         if recording && (changed || !deletion) {
             self.vim_commands
                 .pending_change
-                .push(VimEdit::Editor(VimEditorEdit(action)));
+                .push(VimEdit::Editor(VimEditorEdit(action, None)));
         }
         self.vim_commands.changed |= recording && changed;
         true
@@ -284,7 +286,10 @@ impl TextArea {
 
     pub(super) fn start_vim_edit(&mut self, action: VimAction) -> bool {
         let prior_len = self.text.len();
-        self.vim_commands.pending_change = vec![VimEdit::Editor(VimEditorEdit(action.clone()))];
+        self.vim_commands.pending_change = vec![VimEdit::Editor(VimEditorEdit(
+            action.clone(),
+            self.vim_registers.selected,
+        ))];
         self.vim_commands.changed = false;
         if !self.apply_vim_editor_action(action.clone()) {
             self.vim_commands.pending_change.clear();
@@ -315,7 +320,7 @@ impl TextArea {
             return;
         };
         if let Some(count) = count {
-            let Some(VimEdit::Editor(VimEditorEdit(action))) = edits.first_mut() else {
+            let Some(VimEdit::Editor(VimEditorEdit(action, _))) = edits.first_mut() else {
                 return;
             };
             match action {
@@ -373,7 +378,12 @@ impl TextArea {
 
     pub(crate) fn apply_vim_edit(&mut self, edit: &VimEdit) -> bool {
         match edit {
-            VimEdit::Editor(VimEditorEdit(action)) => self.apply_vim_editor_action(action.clone()),
+            VimEdit::Editor(VimEditorEdit(action, register)) => {
+                let selected = std::mem::replace(&mut self.vim_registers.selected, *register);
+                let applied = self.apply_vim_editor_action(action.clone());
+                self.vim_registers.selected = selected;
+                applied
+            }
             VimEdit::Text(text) => {
                 if !matches!(self.vim_mode, VimMode::Insert | VimMode::Replace) {
                     return false;

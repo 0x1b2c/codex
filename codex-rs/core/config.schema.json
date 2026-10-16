@@ -4866,6 +4866,7 @@
               "repeat_last_change": null,
               "replace_char": null,
               "reverse_find": null,
+              "select_register": null,
               "start_change_operator": null,
               "start_delete_operator": null,
               "start_yank_operator": null,
@@ -5919,6 +5920,7 @@
             "repeat_last_change": null,
             "replace_char": null,
             "reverse_find": null,
+            "select_register": null,
             "start_change_operator": null,
             "start_delete_operator": null,
             "start_yank_operator": null,
@@ -6569,6 +6571,14 @@
             }
           ],
           "description": "Repeat the last character search in the opposite direction (`,`)."
+        },
+        "select_register": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Select a register for the next command (`\"`)."
         },
         "start_change_operator": {
           "allOf": [

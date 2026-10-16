@@ -358,6 +358,7 @@ define_runtime_action_bindings! {
         delete_char,
         delete_before_cursor,
         replace_char,
+        select_register,
         repeat_last_change,
         substitute_char,
         substitute_line,

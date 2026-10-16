@@ -68,6 +68,7 @@ mod vim_join;
 mod vim_match_pair;
 mod vim_operator_counts;
 mod vim_paragraph;
+mod vim_registers;
 mod vim_repeat_find;
 mod vim_search;
 mod vim_text_object_counts;
@@ -174,6 +175,7 @@ pub(crate) struct TextArea {
     vim_mode: VimMode,
     vim_visual_anchor: Option<usize>,
     vim_pending: VimPending,
+    vim_registers: vim_registers::VimRegisters,
     vim_count: Option<usize>,
     vim_operator_count: Option<usize>,
     vim_commands: VimCommandState,
@@ -216,6 +218,7 @@ enum KillBufferKind {
 }
 
 /// The last editor kill or Vim yank, carried between chat composers in the same TUI session.
+#[derive(Debug, Clone)]
 pub(crate) struct KillBufferSnapshot {
     text: String,
     kind: KillBufferKind,
@@ -247,6 +250,7 @@ impl TextArea {
             vim_mode: VimMode::Insert,
             vim_visual_anchor: None,
             vim_pending: VimPending::None,
+            vim_registers: vim_registers::VimRegisters::default(),
             vim_count: None,
             vim_operator_count: None,
             vim_commands: VimCommandState::default(),
@@ -327,6 +331,7 @@ impl TextArea {
         self.preferred_col = None;
         self.clear_vim_visual();
         self.vim_pending = VimPending::None;
+        self.clear_vim_register_selection();
         self.vim_count = None;
         self.vim_operator_count = None;
         self.vim_search = vim_search::VimSearch::default();
@@ -343,6 +348,7 @@ impl TextArea {
         self.vim_enabled = enabled;
         self.clear_vim_visual();
         self.vim_pending = VimPending::None;
+        self.clear_vim_register_selection();
         self.vim_count = None;
         self.vim_operator_count = None;
         self.vim_search = vim_search::VimSearch::default();
@@ -382,7 +388,9 @@ impl TextArea {
     /// This is observable so the composer can avoid stealing the second key of
     /// `d{motion}` or `y{motion}` for higher-level shortcuts.
     pub(crate) fn is_vim_operator_pending(&self) -> bool {
-        self.vim_count.is_some()
+        self.vim_registers.waiting
+            || self.vim_registers.selected.is_some()
+            || self.vim_count.is_some()
             || self.vim_query().is_some()
             || !matches!(self.vim_pending, VimPending::None)
     }
@@ -392,6 +400,7 @@ impl TextArea {
         if !self.vim_enabled
             || matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
             || self.vim_query().is_some()
+            || self.vim_registers.waiting
         {
             return KeymapContext::Editor;
         }
@@ -413,6 +422,7 @@ impl TextArea {
             self.clear_vim_visual();
             self.vim_mode = VimMode::Insert;
             self.vim_pending = VimPending::None;
+            self.clear_vim_register_selection();
             self.vim_count = None;
             self.vim_operator_count = None;
             self.clear_vim_replace_recovery();
@@ -434,6 +444,7 @@ impl TextArea {
             self.clear_vim_visual();
             self.vim_mode = VimMode::Normal;
             self.vim_pending = VimPending::None;
+            self.clear_vim_register_selection();
             self.vim_count = None;
             self.vim_operator_count = None;
             self.cancel_vim_search();
@@ -814,7 +825,11 @@ impl TextArea {
     }
 
     fn handle_vim_input(&mut self, event: KeyEvent) {
+        if self.handle_vim_register_key(event) {
+            return;
+        }
         if self.handle_vim_search_key(event) {
+            self.finish_vim_register_key();
             return;
         }
         let prior_mode = self.vim_mode;
@@ -828,6 +843,7 @@ impl TextArea {
         {
             self.finish_pending_vim_change();
         }
+        self.finish_vim_register_key();
     }
 
     fn handle_vim_insert(&mut self, event: KeyEvent) {
@@ -1042,6 +1058,7 @@ impl TextArea {
         }
         if self.vim_normal_keymap.cancel_operator.is_pressed(event) {
             self.vim_pending = VimPending::None;
+            self.clear_vim_register_selection();
             self.cancel_vim_search();
             return;
         }
@@ -1547,10 +1564,13 @@ impl TextArea {
         if removed.is_empty() {
             return;
         }
-        self.store_kill_buffer(removed, kind);
+        self.store_vim_yank(removed, kind);
     }
 
     fn store_kill_buffer(&mut self, text: String, kind: KillBufferKind) {
+        if !self.store_vim_register(&text, kind) {
+            return;
+        }
         self.kill_buffer = text;
         self.kill_buffer_kind = kind;
     }

@@ -1331,3 +1331,54 @@ fn paragraph_edits_have_single_undo_transactions_and_navigation_preserves_redo()
     keys(&mut composer, "u");
     assert_eq!(composer.current_text(), "a\n\nb");
 }
+
+#[test]
+fn register_prefix_yanks_and_black_hole_paste_preserve_redo() {
+    let mut composer = vim_composer("one two");
+    keys(&mut composer, "xu\"");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    keys(&mut composer, "0");
+    escape(&mut composer);
+    keys(&mut composer, "\"ayw\"_p");
+    assert!(composer.vim_history.pending.is_none());
+    assert_eq!(composer.vim_history.redo.len(), 1);
+    ctrl_r(&mut composer);
+    assert_eq!(composer.current_text(), "ne two");
+}
+
+#[test]
+fn registers_survive_undo_and_named_change_and_dot_each_undo_once() {
+    let mut composer = vim_composer("one two three");
+    keys(&mut composer, "yw\"acwX");
+    escape(&mut composer);
+    assert_eq!(composer.vim_history.undo.len(), 1);
+    keys(&mut composer, "w.");
+    assert_eq!(composer.current_text(), "X X three");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "X two three");
+    // Undo restores the draft but the named register retains the last deleted word.
+    composer.draft.textarea.set_cursor(0);
+    keys(&mut composer, "\"aP");
+    assert_eq!(composer.current_text(), "twoX two three");
+    keys(&mut composer, "u");
+    composer.draft.textarea.set_cursor(0);
+    keys(&mut composer, "\"0P");
+    assert_eq!(composer.current_text(), "one X two three");
+}
+
+#[test]
+fn black_hole_counted_dot_and_visual_delete_use_single_undo_steps() {
+    let mut composer = vim_composer("one two three four five");
+    keys(&mut composer, "yw\"_dw2.");
+    assert_eq!(composer.current_text(), "four five");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u");
+    assert_eq!(composer.current_text(), "two three four five");
+    keys(&mut composer, "v\"_d");
+    assert_eq!(composer.current_text(), "wo three four five");
+    assert_eq!(composer.vim_history.undo.len(), 2);
+    keys(&mut composer, "u\"0P");
+    assert_eq!(composer.current_text(), "one two three four five");
+}

@@ -40,6 +40,8 @@
 //! Backspace on an empty Vim search query cancels search and any pending operator.
 //! Normal numeric prefixes keep subsequent keys in the textarea until their motion completes
 //! or Escape cancels it, including a configured multi-key motion such as `3gg`.
+//! Register prefixes keep their next key literal, then carry the selected register through the
+//! command and dot replay. Register contents survive draft undo/redo independently of snapshots.
 //!
 //! # Completion and Popup Dismissal
 //!

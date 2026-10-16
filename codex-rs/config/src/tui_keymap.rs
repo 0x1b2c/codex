@@ -331,6 +331,8 @@ pub struct TuiVimNormalKeymap {
     pub delete_before_cursor: Option<KeybindingsSpec>,
     /// Replace the character under the cursor (`r`).
     pub replace_char: Option<KeybindingsSpec>,
+    /// Select a register for the next command (`"`).
+    pub select_register: Option<KeybindingsSpec>,
     /// Repeat the last complete edit (`.`).
     pub repeat_last_change: Option<KeybindingsSpec>,
     /// Delete character under cursor and enter insert mode (`s`).

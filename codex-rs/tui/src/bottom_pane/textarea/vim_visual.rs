@@ -142,7 +142,9 @@ impl TextArea {
 
     /// Selection deletion, change, and joining can start a composer undo transaction.
     pub(crate) fn vim_visual_key_may_edit(&self, event: KeyEvent) -> bool {
-        matches!(self.vim_pending, VimPending::None)
+        !self.vim_registers.waiting
+            && !self.vim_normal_keymap.select_register.is_pressed(event)
+            && matches!(self.vim_pending, VimPending::None)
             && event.code != KeyCode::Esc
             && !self.vim_normal_keymap.cancel_operator.is_pressed(event)
             && !self.vim_normal_keymap.enter_visual.is_pressed(event)
@@ -191,7 +193,9 @@ impl TextArea {
                 column: self.vim_visual_atomic_width(self.beginning_of_line(endpoint)..range.end),
             }
         };
+        let register = self.vim_registers.selected;
         self.enter_vim_normal_mode();
+        self.vim_registers.selected = register;
         self.set_cursor(range.start);
         match operator {
             VimOperator::Yank => {
@@ -201,7 +205,7 @@ impl TextArea {
                     if endpoint == self.text.len() && self.beginning_of_line(endpoint) == endpoint {
                         selected.push('\n');
                     }
-                    self.store_kill_buffer(selected, KillBufferKind::Linewise);
+                    self.store_vim_yank(selected, KillBufferKind::Linewise);
                 } else {
                     self.yank_range(range);
                 }

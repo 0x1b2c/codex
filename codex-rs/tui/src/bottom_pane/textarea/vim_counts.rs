@@ -12,6 +12,7 @@ use crossterm::event::KeyModifiers;
 impl TextArea {
     pub(crate) fn wants_vim_count_key(&self, event: KeyEvent) -> bool {
         (self.is_vim_normal_mode() || self.is_vim_visual_mode())
+            && !self.vim_registers.waiting
             && matches!(self.vim_pending, VimPending::None)
             && count_digit(event).is_some_and(|digit| {
                 if digit == 0 {
@@ -63,6 +64,7 @@ impl TextArea {
             &keys.delete_before_cursor,
             &keys.replace_char,
             &keys.repeat_last_change,
+            &keys.select_register,
             &keys.substitute_char,
             &keys.substitute_line,
             &keys.delete_to_line_end,

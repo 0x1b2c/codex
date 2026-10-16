@@ -4,7 +4,8 @@
 //! edit transactions here lets one snapshot restore those values together with visible text. Keys
 //! and direct composer-owned changes share the same bounded transaction state.
 //! Committed snapshots share a byte budget. One pending edit snapshot has its own matching cap,
-//! so canceled commands cannot evict committed history.
+//! so canceled commands cannot evict committed history. Register prefixes and yanks leave redo
+//! available; register contents are carried around draft restoration with command replay state.
 
 use std::collections::VecDeque;
 
@@ -68,6 +69,7 @@ impl ChatComposer {
         self.draft.textarea.is_vim_normal_mode()
             && !self.draft.textarea.is_vim_operator_pending()
             && !self.popups.active()
+            && !self.vim_normal_keymap.select_register.is_pressed(event)
             && (self.vim_normal_keymap.redo.is_pressed(event)
                 || self.vim_normal_keymap.undo.is_pressed(event))
     }
@@ -127,7 +129,8 @@ impl ChatComposer {
 
         if self.draft.textarea.is_vim_normal_mode()
             && !self.draft.textarea.is_vim_operator_pending()
-            && (self.draft.textarea.wants_vim_count_key(event)
+            && (self.vim_normal_keymap.select_register.is_pressed(event)
+                || self.draft.textarea.wants_vim_count_key(event)
                 || self.vim_normal_keymap.enter_visual.is_pressed(event)
                 || self.vim_normal_keymap.enter_visual_line.is_pressed(event)
                 || self.vim_normal_keymap.move_left.is_pressed(event)

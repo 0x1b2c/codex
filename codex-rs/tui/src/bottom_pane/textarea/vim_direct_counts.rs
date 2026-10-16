@@ -136,11 +136,11 @@ impl TextArea {
     }
 
     pub(super) fn paste_vim(&mut self, count: usize, before: bool) -> bool {
-        if self.kill_buffer.is_empty() {
+        let Some(buffer) = self.vim_paste_buffer() else {
             return false;
-        }
-        let linewise = self.kill_buffer_kind == KillBufferKind::Linewise && !self.single_line;
-        let mut unit = self.filter_line_breaks(&self.kill_buffer).into_owned();
+        };
+        let linewise = buffer.kind == KillBufferKind::Linewise && !self.single_line;
+        let mut unit = self.filter_line_breaks(&buffer.text).into_owned();
         if unit.is_empty() {
             return false;
         }
