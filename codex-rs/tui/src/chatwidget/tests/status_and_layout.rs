@@ -656,103 +656,35 @@ async fn prefetch_rate_limits_is_gated_on_chatgpt_auth_provider() {
 }
 
 #[tokio::test]
-async fn rate_limit_warnings_emit_thresholds() {
-    let mut state = RateLimitWarningState::default();
-    let plan = None;
-    let mut warnings: Vec<String> = Vec::new();
-
-    warnings.extend(state.take_warnings(plan, Some(10.0), Some(10079), Some(55.0), Some(299)));
-    warnings.extend(state.take_warnings(plan, Some(55.0), Some(10081), Some(10.0), Some(299)));
-    warnings.extend(state.take_warnings(plan, Some(10.0), Some(10081), Some(80.0), Some(299)));
-    warnings.extend(state.take_warnings(plan, Some(80.0), Some(10081), Some(10.0), Some(299)));
-    warnings.extend(state.take_warnings(plan, Some(10.0), Some(10081), Some(95.0), Some(299)));
-    warnings.extend(state.take_warnings(plan, Some(95.0), Some(10079), Some(10.0), Some(299)));
-
-    assert_eq!(
-        warnings,
-        vec![
-            String::from(
-                "Heads up, you have less than 25% of your 5h limit left. Run /status for a breakdown."
-            ),
-            String::from(
-                "Heads up, you have less than 25% of your weekly limit left. Run /status for a breakdown.",
-            ),
-            String::from(
-                "Heads up, you have less than 5% of your 5h limit left. Run /status for a breakdown."
-            ),
-            String::from(
-                "Heads up, you have less than 5% of your weekly limit left. Run /status for a breakdown.",
-            ),
-        ],
-        "expected one warning per limit for the highest crossed threshold"
-    );
-}
-
-#[tokio::test]
-async fn rate_limit_usage_warnings_early_threshold_is_scoped_and_deduplicated() {
-    for (plan_type, window_minutes, should_warn_early) in [
-        (Some(PlanType::Plus), Some(300), true),
-        (Some(PlanType::Team), Some(299), true),
-        (Some(PlanType::Pro), Some(300), false),
-        (Some(PlanType::Business), Some(300), false),
-        (Some(PlanType::SelfServeBusinessProLite), Some(300), false),
-        (None, Some(300), false),
-        (Some(PlanType::Plus), Some(10080), false),
-        (Some(PlanType::Team), None, false),
+async fn rate_limit_updates_do_not_add_proactive_usage_warnings() {
+    for plan_type in [
+        None,
+        Some(PlanType::Plus),
+        Some(PlanType::Team),
+        Some(PlanType::Pro),
     ] {
-        let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
-        let mut usage = snapshot(/*percent*/ 49.0);
-        usage.plan_type = plan_type;
-        usage.primary.as_mut().unwrap().window_duration_mins = window_minutes;
-        chat.on_rate_limit_snapshot(Some(usage.clone()));
-        assert!(drain_insert_history_transcript(&mut rx).is_empty());
-
-        // Rolling updates retain the plan learned from the account usage response.
-        usage.plan_type = None;
-        usage.primary.as_mut().unwrap().used_percent = 50;
-        chat.on_rolling_rate_limit_snapshot(usage.clone());
-        let warnings = drain_insert_history_transcript(&mut rx);
-        assert_eq!(!warnings.is_empty(), should_warn_early);
-        if should_warn_early {
-            insta::allow_duplicates! {
-                insta::assert_snapshot!(lines_to_single_string(&warnings.concat()), @r"
-                ⚠ Heads up, you have less than 50% of your 5h limit left. Run /status for a
-                  breakdown.
-                ");
+        for window_minutes in [
+            None,
+            Some(120),
+            Some(299),
+            Some(1440),
+            Some(10080),
+            Some(43200),
+        ] {
+            let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
+            for used_percent in [49, 50, 75, 90, 95, 100] {
+                let mut usage = snapshot(/*percent*/ f64::from(used_percent));
+                usage.plan_type = plan_type;
+                usage.primary.as_mut().unwrap().window_duration_mins = window_minutes;
+                usage.secondary = usage.primary.clone();
+                chat.on_rate_limit_snapshot(Some(usage.clone()));
+                assert!(drain_insert_history_transcript(&mut rx).is_empty());
+                chat.on_rolling_rate_limit_snapshot(usage);
+                assert!(drain_insert_history_transcript(&mut rx).is_empty());
+                assert!(!chat.rate_limit_snapshots_by_limit_id.is_empty());
             }
         }
-
-        chat.on_rolling_rate_limit_snapshot(usage.clone());
-        assert!(drain_insert_history_transcript(&mut rx).is_empty());
-        for used_percent in [75, 90, 95] {
-            usage.primary.as_mut().unwrap().used_percent = used_percent;
-            chat.on_rolling_rate_limit_snapshot(usage.clone());
-            assert_eq!(drain_insert_history_transcript(&mut rx).len(), 1);
-            chat.on_rolling_rate_limit_snapshot(usage.clone());
-            assert!(drain_insert_history_transcript(&mut rx).is_empty());
-        }
     }
-}
-
-#[tokio::test]
-async fn test_rate_limit_warnings_monthly() {
-    let mut state = RateLimitWarningState::default();
-    let mut warnings: Vec<String> = Vec::new();
-
-    warnings.extend(state.take_warnings(
-        /*plan_type*/ None,
-        Some(75.0),
-        Some(43199),
-        /*primary_used_percent*/ None,
-        /*primary_window_minutes*/ None,
-    ));
-    assert_eq!(
-        warnings,
-        vec![String::from(
-            "Heads up, you have less than 25% of your monthly limit left. Run /status for a breakdown.",
-        ),],
-        "expected one warning per limit for the highest crossed threshold"
-    );
 }
 
 #[test]
@@ -762,47 +694,6 @@ fn rate_limit_duration_labels_only_render_supported_windows() {
     assert_eq!(
         get_limits_duration(365 * 24 * 60).as_deref(),
         Some("annual")
-    );
-}
-
-#[tokio::test]
-async fn test_rate_limit_warnings_use_generic_fallback_labels() {
-    let mut state = RateLimitWarningState::default();
-
-    assert_eq!(
-        state.take_warnings(
-            /*plan_type*/ None,
-            /*secondary_used_percent*/ Some(75.0),
-            /*secondary_window_minutes*/ None,
-            /*primary_used_percent*/ Some(75.0),
-            /*primary_window_minutes*/ None,
-        ),
-        vec![
-            String::from(
-                "Heads up, you have less than 25% of your secondary usage limit left. Run /status for a breakdown.",
-            ),
-            String::from(
-                "Heads up, you have less than 25% of your usage limit left. Run /status for a breakdown.",
-            ),
-        ],
-    );
-}
-
-#[tokio::test]
-async fn test_rate_limit_warnings_use_secondary_fallback_for_unsupported_window() {
-    let mut state = RateLimitWarningState::default();
-
-    assert_eq!(
-        state.take_warnings(
-            /*plan_type*/ None,
-            /*secondary_used_percent*/ Some(75.0),
-            /*secondary_window_minutes*/ Some(2 * 60),
-            /*primary_used_percent*/ None,
-            /*primary_window_minutes*/ None,
-        ),
-        vec![String::from(
-            "Heads up, you have less than 25% of your secondary usage limit left. Run /status for a breakdown.",
-        )],
     );
 }
 
@@ -1271,7 +1162,7 @@ async fn rate_limit_switch_prompt_skips_non_codex_limit() {
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_follow_workspace_credit_flags() {
+async fn rate_limit_switch_prompt_follows_workspace_credit_flags() {
     for (credits, should_warn) in [
         (
             CreditsSnapshot {
@@ -1337,7 +1228,7 @@ async fn rate_limit_usage_warnings_follow_workspace_credit_flags() {
 
         chat.on_rate_limit_snapshot(Some(rate_limit_snapshot));
 
-        assert_eq!(!drain_insert_history(&mut rx).is_empty(), should_warn);
+        assert!(drain_insert_history(&mut rx).is_empty());
         assert_eq!(
             matches!(
                 chat.rate_limit_switch_prompt,
@@ -1345,12 +1236,11 @@ async fn rate_limit_usage_warnings_follow_workspace_credit_flags() {
             ),
             should_warn
         );
-        assert_eq!(chat.rate_limit_warnings.primary_index > 0, should_warn);
     }
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_show_when_authoritative_snapshot_clears_credits() {
+async fn rate_limit_switch_prompt_shows_when_authoritative_snapshot_clears_credits() {
     let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
     chat.has_chatgpt_account = true;
 
@@ -1365,8 +1255,8 @@ async fn rate_limit_usage_warnings_show_when_authoritative_snapshot_clears_credi
     chat.on_rate_limit_snapshot(Some(snapshot(/*percent*/ 95.0)));
 
     assert!(
-        !drain_insert_history(&mut rx).is_empty(),
-        "an authoritative snapshot without credits should clear stale credit availability"
+        drain_insert_history(&mut rx).is_empty(),
+        "usage updates should not add proactive warnings"
     );
     assert!(matches!(
         chat.rate_limit_switch_prompt,
@@ -1438,7 +1328,7 @@ async fn rate_limit_switch_prompt_dismisses_shown_when_workspace_credits_become_
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_preserve_workspace_limit_for_sparse_snapshots() {
+async fn rate_limit_switch_prompt_preserves_workspace_limit_for_sparse_snapshots() {
     for rate_limit_reached_type in [
         RateLimitReachedType::WorkspaceOwnerCreditsDepleted,
         RateLimitReachedType::WorkspaceMemberCreditsDepleted,
@@ -1460,8 +1350,8 @@ async fn rate_limit_usage_warnings_preserve_workspace_limit_for_sparse_snapshots
         chat.on_rolling_rate_limit_snapshot(snapshot(/*percent*/ 95.0));
 
         assert!(
-            !drain_insert_history(&mut rx).is_empty(),
-            "an explicit workspace hard stop should keep proactive usage warnings enabled"
+            drain_insert_history(&mut rx).is_empty(),
+            "workspace hard stops should not add proactive usage warnings"
         );
         assert!(matches!(
             chat.rate_limit_switch_prompt,
@@ -1471,7 +1361,7 @@ async fn rate_limit_usage_warnings_preserve_workspace_limit_for_sparse_snapshots
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_keep_workspace_limit_after_rolling_credits() {
+async fn rate_limit_switch_prompt_keeps_workspace_limit_after_rolling_credits() {
     for rate_limit_reached_type in [
         RateLimitReachedType::WorkspaceOwnerCreditsDepleted,
         RateLimitReachedType::WorkspaceMemberCreditsDepleted,
@@ -1527,8 +1417,8 @@ async fn rate_limit_usage_warnings_keep_workspace_limit_after_rolling_credits() 
             chat.on_rolling_rate_limit_snapshot(rolling_snapshot);
 
             assert!(
-                !drain_insert_history(&mut rx).is_empty(),
-                "usable rolling workspace credits must not suppress an existing workspace hard stop"
+                drain_insert_history(&mut rx).is_empty(),
+                "rolling credits should not add proactive usage warnings"
             );
             assert!(matches!(
                 chat.rate_limit_switch_prompt,
@@ -1543,7 +1433,7 @@ async fn rate_limit_usage_warnings_keep_workspace_limit_after_rolling_credits() 
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_keep_explicit_rolling_workspace_limit() {
+async fn rate_limit_switch_prompt_keeps_explicit_rolling_workspace_limit() {
     for rate_limit_reached_type in [
         RateLimitReachedType::WorkspaceOwnerCreditsDepleted,
         RateLimitReachedType::WorkspaceMemberCreditsDepleted,
@@ -1565,8 +1455,8 @@ async fn rate_limit_usage_warnings_keep_explicit_rolling_workspace_limit() {
             chat.on_rolling_rate_limit_snapshot(rolling_snapshot);
 
             assert!(
-                !drain_insert_history(&mut rx).is_empty(),
-                "an explicit rolling workspace hard stop should keep proactive usage warnings enabled"
+                drain_insert_history(&mut rx).is_empty(),
+                "workspace hard stops should not add proactive usage warnings"
             );
             assert!(matches!(
                 chat.rate_limit_switch_prompt,
@@ -1581,7 +1471,7 @@ async fn rate_limit_usage_warnings_keep_explicit_rolling_workspace_limit() {
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_keep_newly_reached_workspace_limit() {
+async fn rate_limit_switch_prompt_keeps_newly_reached_workspace_limit() {
     for (limit_id, should_warn) in [("codex", true), ("codex_other", false)] {
         let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
         chat.has_chatgpt_account = true;
@@ -1606,7 +1496,7 @@ async fn rate_limit_usage_warnings_keep_newly_reached_workspace_limit() {
             Some(RateLimitReachedType::WorkspaceMemberUsageLimitReached);
         chat.on_rolling_rate_limit_snapshot(capped_snapshot);
 
-        assert_eq!(!drain_insert_history(&mut rx).is_empty(), should_warn);
+        assert!(drain_insert_history(&mut rx).is_empty());
         assert_eq!(
             matches!(
                 chat.rate_limit_switch_prompt,
@@ -1629,7 +1519,7 @@ async fn rate_limit_usage_warnings_keep_newly_reached_workspace_limit() {
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_preserve_and_clear_spend_control_state() {
+async fn rate_limit_switch_prompt_preserves_and_clear_spend_control_state() {
     let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
     chat.has_chatgpt_account = true;
 
@@ -1647,8 +1537,8 @@ async fn rate_limit_usage_warnings_preserve_and_clear_spend_control_state() {
 
     chat.on_rolling_rate_limit_snapshot(snapshot(/*percent*/ 95.0));
     assert!(
-        !drain_insert_history(&mut rx).is_empty(),
-        "a sparse rolling snapshot should preserve a reached spend control"
+        drain_insert_history(&mut rx).is_empty(),
+        "sparse snapshots should not add proactive usage warnings"
     );
     assert!(matches!(
         chat.rate_limit_switch_prompt,
@@ -1711,7 +1601,7 @@ async fn rolling_credits_preserve_depleted_workspace_error_routing() {
     rolling_snapshot.spend_control_reached = Some(false);
     chat.on_rolling_rate_limit_snapshot(rolling_snapshot);
 
-    assert!(!drain_insert_history(&mut rx).is_empty());
+    assert!(drain_insert_history(&mut rx).is_empty());
     assert!(matches!(
         chat.rate_limit_switch_prompt,
         RateLimitSwitchPromptState::Pending
@@ -1733,7 +1623,7 @@ async fn rolling_credits_preserve_depleted_workspace_error_routing() {
 }
 
 #[tokio::test]
-async fn rate_limit_usage_warnings_clear_workspace_limit_from_authoritative_snapshot() {
+async fn rate_limit_switch_prompt_clears_workspace_limit_from_authoritative_snapshot() {
     let (mut chat, mut rx, _) = make_chatwidget_manual(Some("gpt-5")).await;
     chat.has_chatgpt_account = true;
 
@@ -1773,10 +1663,10 @@ async fn rate_limit_switch_prompt_shows_once_per_session() {
     chat.has_chatgpt_account = true;
 
     chat.on_rate_limit_snapshot(Some(snapshot(/*percent*/ 90.0)));
-    assert!(
-        chat.rate_limit_warnings.primary_index >= 1,
-        "warnings not emitted"
-    );
+    assert!(matches!(
+        chat.rate_limit_switch_prompt,
+        RateLimitSwitchPromptState::Pending
+    ));
     chat.maybe_show_pending_rate_limit_prompt();
     assert!(matches!(
         chat.rate_limit_switch_prompt,
@@ -1800,7 +1690,6 @@ async fn account_update_clears_derived_usage_limit_state_and_prompt() {
     chat.on_rate_limit_snapshot(Some(limits));
     chat.maybe_show_pending_rate_limit_prompt();
 
-    assert!(chat.rate_limit_warnings.primary_index > 0);
     assert!(chat.codex_rate_limit_reached_type.is_some());
     assert_eq!(chat.codex_spend_control_reached, Some(true));
     assert!(matches!(
@@ -1814,8 +1703,6 @@ async fn account_update_clears_derived_usage_limit_state_and_prompt() {
         /*has_chatgpt_account*/ true, /*has_codex_backend_auth*/ true,
     );
 
-    assert_eq!(chat.rate_limit_warnings.primary_index, 0);
-    assert_eq!(chat.rate_limit_warnings.secondary_index, 0);
     assert_eq!(chat.codex_rate_limit_reached_type, None);
     assert_eq!(chat.codex_spend_control_reached, None);
     assert!(matches!(

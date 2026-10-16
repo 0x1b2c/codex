@@ -1,6 +1,5 @@
 //! Retain warning details for the transcript while exposing stable identities to the footer.
 //! Message identities deduplicate replay; MCP identities count affected servers, not summary rows.
-//! Quota warnings remain visible in both transcript modes.
 
 use super::*;
 use std::collections::BTreeMap;
@@ -48,7 +47,6 @@ pub(crate) enum WarningKey<'a> {
 #[derive(Debug)]
 pub(crate) struct WarningHistoryCell {
     pub(crate) server_version_notice: bool,
-    pub(super) visible_in_transcript: bool,
     pub(super) key: String,
     pub(super) diagnostic: String,
     pub(super) details: PrefixedWrappedHistoryCell,
@@ -56,19 +54,11 @@ pub(crate) struct WarningHistoryCell {
 
 impl HistoryCell for WarningHistoryCell {
     fn live_raw_lines(&self) -> Vec<Line<'static>> {
-        if self.visible_in_transcript {
-            self.details.raw_lines()
-        } else {
-            Vec::new()
-        }
+        Vec::new()
     }
 
-    fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        if self.visible_in_transcript {
-            self.details.display_lines(width)
-        } else {
-            Vec::new()
-        }
+    fn display_lines(&self, _width: u16) -> Vec<Line<'static>> {
+        Vec::new()
     }
 
     fn transcript_lines(&self, width: u16) -> Vec<Line<'static>> {

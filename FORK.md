@@ -43,6 +43,15 @@ is omitted when its value is unknown.
 
 *Topic: `cache-expiry`. Current range: `283cdd1476..d8c2783d49`.*
 
+### Usage warnings should not interrupt the conversation
+
+Proactive usage-threshold warnings no longer add messages to the conversation or
+warning count. Check `/status` or the status line for usage; the composer usage
+notice, actual limit errors, and model-switch and credit-recovery flows remain
+available.
+
+*Topic branch not yet split from the integration history.*
+
 ### Build and developer experience
 
 **`local-build`** adds an optimized release profile, `just build`, and

@@ -18,7 +18,6 @@ fn quota(used_percent: i32) -> RateLimitSnapshot {
 
 #[tokio::test]
 async fn usage_notice_preserves_composer_geometry_on_recovery() -> Result<()> {
-    let mut snapshots = Vec::new();
     for (width, height, running, queued, used_percent) in [
         (80, 10, false, false, 92),
         (80, 12, true, false, 98),
@@ -108,9 +107,22 @@ async fn usage_notice_preserves_composer_geometry_on_recovery() -> Result<()> {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        snapshots.push(format!(
-            "{width} columns, {height} rows, running={running}, queued={queued}\n{screen}"
-        ));
+        assert_eq!(history_cell::warning_count(&app.transcript_cells), 0);
+        let transcript_width = app.chat_widget.history_wrap_width(width);
+        let notice = app
+            .composer_hint(transcript_width)
+            .expect("usage notice remains available");
+        let notice_visible = height >= 10 && !(height == 11 && queued);
+        assert_eq!(
+            screen.contains(notice.line.to_string().trim()),
+            notice_visible
+        );
+        if running {
+            assert!(screen.contains("draft stays"));
+        }
+        if queued {
+            assert!(screen.contains("queued follow-up"));
+        }
         app.chat_widget
             .on_rate_limit_snapshot(Some(quota(/*used_percent*/ 10)));
         assert_eq!(app.composer_hint(width), hint);
@@ -118,10 +130,6 @@ async fn usage_notice_preserves_composer_geometry_on_recovery() -> Result<()> {
         assert_eq!(tui.terminal.last_known_cursor_pos, cursor);
         tui.set_owned_screen(/*owned*/ false)?;
     }
-    insta::assert_snapshot!(
-        "composer_usage_notice",
-        crate::chatwidget::tests::helpers::normalize_snapshot_paths(snapshots.join("\n\n")),
-    );
     Ok(())
 }
 
@@ -140,6 +148,10 @@ async fn usage_notice_yields_to_interactions_and_blocking_banners() {
     assert_eq!(app.composer_hint(/*width*/ 80), None);
     app.transcript_view = Default::default();
     assert_eq!(app.composer_hint(/*width*/ 80), notice);
+    app.transcript_cells
+        .push(Arc::new(history_cell::new_warning_event(
+            "Diagnostic warning".into(),
+        )));
     app.chat_widget.open_warnings(&app.transcript_cells);
     assert_eq!(app.composer_hint(/*width*/ 80), None);
     app.chat_widget.handle_key_event(KeyCode::Esc.into());

@@ -4,43 +4,17 @@ use super::*;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn usage_warnings_render_in_both_transcripts_including_composites() {
-    let message = "Only 8% of your 5h limit remains. Run /status for details.";
-    let usage = new_usage_warning_event(message.into());
-    let diagnostic = new_warning_event(message.into());
-    let composite = CompositeHistoryCell::new(vec![
-        Box::new(PlainHistoryCell::new(vec!["Earlier output".into()])),
-        Box::new(new_warning_event("Hidden diagnostic".into())),
-        Box::new(new_usage_warning_event(message.into())),
-    ]);
-    assert_eq!(usage.warning_entries(), diagnostic.warning_entries());
+fn diagnostic_warnings_stay_hidden_but_retain_details_in_both_modes() {
+    let diagnostic = new_warning_event("Diagnostic warning".into());
     for mode in [HistoryRenderMode::Rich, HistoryRenderMode::Raw] {
-        let visible = usage.display_hyperlink_lines_for_mode(/*width*/ 28, mode);
-        let expected = match mode {
-            HistoryRenderMode::Rich => usage.transcript_hyperlink_lines(/*width*/ 28),
-            HistoryRenderMode::Raw => plain_hyperlink_lines(usage.raw_lines()),
-        };
-        assert_eq!(visible, expected);
-        if matches!(mode, HistoryRenderMode::Rich) {
-            assert_eq!(usage.compact_hyperlink_lines(/*width*/ 28), visible);
-        }
         assert!(
             diagnostic
                 .display_hyperlink_lines_for_mode(/*width*/ 28, mode)
                 .is_empty()
         );
-        assert_eq!(
-            composite.display_hyperlink_lines_for_mode(/*width*/ 28, mode),
-            [
-                vec![
-                    HyperlinkLine::from("Earlier output"),
-                    HyperlinkLine::from("")
-                ],
-                visible
-            ]
-            .concat(),
-        );
     }
+    assert!(!diagnostic.raw_lines().is_empty());
+    assert!(!diagnostic.transcript_lines(/*width*/ 28).is_empty());
 }
 
 #[test]
