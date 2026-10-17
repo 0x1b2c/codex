@@ -562,6 +562,8 @@ pub(crate) struct App {
     native_history: native_history::NativeHistory,
     turn_tips: turn_tips::TurnTips,
     pub(crate) transcript_view: crate::transcript_view::TranscriptView,
+    /// Geometry of the last owned frame, for wheel hit testing between scheduled frames.
+    owned_transcript_geometry: Option<(Size, Rect)>,
     last_rendered_history_tail: Option<history_ui::RenderedHistoryTail>,
     last_thread_usage_status_cell: Option<history_ui::ThreadUsageStatusHistory>,
     pub(crate) pending_thread_usage_history_refresh: bool,

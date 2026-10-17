@@ -186,6 +186,11 @@ impl Default for TranscriptView {
 }
 
 impl TranscriptView {
+    /// Whether a nonempty viewport has been established for navigation and mouse hit testing.
+    pub(crate) fn has_viewport(&self) -> bool {
+        !self.area.is_empty()
+    }
+
     /// Rows left after the last render, including all startup notices and live entries.
     /// Callers can paint temporary UI here without changing selection or saved history.
     pub(crate) fn remaining_area(&self) -> Rect {

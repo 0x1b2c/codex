@@ -52,6 +52,17 @@ available.
 
 *Topic branch not yet split from the integration history.*
 
+### History scrolling should not redraw an old frame for every wheel event
+
+In the main fullscreen view, consecutive wheel events update the scroll position
+without synchronously painting an intermediate frame when the displayed viewport
+geometry is unchanged. The existing frame scheduler draws the accumulated
+position. Initial layout, terminal resizes, and composer-height changes still
+refresh geometry before handling the wheel; clicks and selection drags retain
+their synchronous layout refresh.
+
+*Topic branch not yet split from the integration history.*
+
 ### Build and developer experience
 
 **`local-build`** adds an optimized release profile, `just build`, and

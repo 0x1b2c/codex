@@ -77,6 +77,15 @@ impl App {
         tui: &mut tui::Tui,
         screen_size: Size,
     ) -> Result<Rect> {
+        self.render_owned_transcript_with_geometry(tui, screen_size, /*wheel*/ false)
+    }
+
+    fn render_owned_transcript_with_geometry(
+        &mut self,
+        tui: &mut tui::Tui,
+        screen_size: Size,
+        wheel: bool,
+    ) -> Result<Rect> {
         self.chat_widget.sync_warnings(&self.transcript_cells);
         let motion = MotionMode::from_animations_enabled(
             self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
@@ -170,6 +179,15 @@ impl App {
             screen_size.width,
             bottom_height,
         );
+        // Wheel events accumulate navigation against the displayed viewport. Only establish a
+        // new layout when its geometry changed; the frame requester coalesces ordinary scrolling.
+        // Clicks and drags still paint first to refresh their text/selection hit targets.
+        if wheel
+            && view.has_viewport()
+            && self.owned_transcript_geometry == Some((screen_size, bottom_area))
+        {
+            return Ok(bottom_area);
+        }
         let mut rendered_cursor = None;
         let mut footer_height_changed = false;
         let mut feedback_tick = None;
@@ -322,6 +340,7 @@ impl App {
                 frame.set_cursor_position(position);
             }
         })?;
+        self.owned_transcript_geometry = Some((screen_size, bottom_area));
         if let Some((surface, tip)) = &turn_tip
             && tip.rendered.get().is_some()
         {
@@ -411,7 +430,12 @@ impl App {
             let composer_ready = self.chat_widget.prepare_composer_mouse(*mouse);
             if mouse.kind != crossterm::event::MouseEventKind::Moved {
                 let size = tui.prepare_draw_size()?;
-                self.render_owned_transcript(tui, size)?;
+                let wheel = matches!(
+                    mouse.kind,
+                    crossterm::event::MouseEventKind::ScrollUp
+                        | crossterm::event::MouseEventKind::ScrollDown
+                );
+                self.render_owned_transcript_with_geometry(tui, size, wheel)?;
             }
             if self.chat_widget.no_modal_or_popup_active()
                 && self

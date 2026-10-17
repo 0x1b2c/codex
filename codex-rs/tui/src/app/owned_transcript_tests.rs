@@ -1433,6 +1433,109 @@ fn row_containing(tui: &tui::Tui, text: &str) -> u16 {
 }
 
 #[tokio::test]
+async fn fullscreen_wheel_burst_accumulates_without_drawing_intermediate_frames() -> Result<()> {
+    let mut app = crate::app::test_support::make_test_app().await;
+    app.local_settings.tui.mouse_scroll_speed = Some(1.0);
+    let mut server = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(/*owned*/ true)?;
+    let size = tui.terminal.size()?;
+    app.transcript_cells = vec![Arc::new(crate::history_cell::PlainHistoryCell::new(
+        (1..=80).map(|n| format!("History {n:02}").into()).collect(),
+    ))];
+    app.render_owned_transcript(&mut tui, size)?;
+    // Compare the scheduled frame with the same accumulated navigation performed at once.
+    app.transcript_view.scroll(&app.transcript_cells, -6);
+    app.render_owned_transcript(&mut tui, size)?;
+    let expected = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+        &tui.terminal,
+    ));
+    app.transcript_view.jump_to_latest();
+    app.render_owned_transcript(&mut tui, size)?;
+    let initial = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+        &tui.terminal,
+    ));
+    for direction in [
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollDown,
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollUp,
+        MouseEventKind::ScrollUp,
+    ] {
+        assert!(app.handle_owned_transcript_event(
+            &mut tui,
+            &mut server,
+            &mouse(direction, /*column*/ 1, /*row*/ 1),
+        )?);
+        assert_eq!(
+            buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+                &tui.terminal,
+            )),
+            initial,
+        );
+    }
+    assert!(!app.transcript_view.is_following());
+    app.handle_tui_event(&mut tui, &mut server, TuiEvent::Draw)
+        .await?;
+    assert_eq!(
+        buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+            &tui.terminal,
+        )),
+        expected,
+    );
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn fullscreen_wheel_initializes_layout_and_refreshes_changed_geometry() -> Result<()> {
+    let mut app = crate::app::test_support::make_test_app().await;
+    let mut server = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(/*owned*/ true)?;
+    app.transcript_cells = vec![Arc::new(crate::history_cell::PlainHistoryCell::new(
+        (1..=80).map(|n| format!("History {n:02}").into()).collect(),
+    ))];
+    let wheel = mouse(MouseEventKind::ScrollUp, /*column*/ 1, /*row*/ 1);
+    assert!(app.handle_owned_transcript_event(&mut tui, &mut server, &wheel)?);
+    assert!(
+        !app.transcript_view.is_following(),
+        "the first wheel must not be lost"
+    );
+    let initial = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+        &tui.terminal,
+    ));
+    assert!(initial.contains("History 80"), "{initial}");
+
+    let resized = Size::new(/*width*/ 60, /*height*/ 20);
+    tui.terminal.resize(resized)?;
+    tui.screen_size_for_event(&TuiEvent::Resize(resized))?;
+    assert!(app.handle_owned_transcript_event(&mut tui, &mut server, &wheel)?);
+    assert_eq!(
+        crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal).area,
+        Rect::new(0, 0, resized.width, resized.height),
+    );
+
+    app.chat_widget
+        .apply_external_edit("new draft\nsecond line\nthird line".into());
+    assert!(app.handle_owned_transcript_event(&mut tui, &mut server, &wheel)?);
+    let rendered = buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+        &tui.terminal,
+    ));
+    assert!(rendered.contains("third line"), "{rendered}");
+
+    // A thread switch can replace the view while retaining identical terminal/composer geometry.
+    app.transcript_view = Default::default();
+    assert!(app.handle_owned_transcript_event(&mut tui, &mut server, &wheel)?);
+    assert!(!app.transcript_view.is_following());
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn fullscreen_composer_mouse_copy_and_input_ownership() -> Result<()> {
     let mut app = crate::app::test_support::make_test_app().await;
     app.local_settings.tui.copy_on_select = CopyOnSelect::Never;
@@ -1660,9 +1763,16 @@ async fn fullscreen_composer_scrolls_without_moving_caret_or_transcript() -> Res
     let mut frames = Vec::new();
     let buffer = crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal);
     frames.push(format!("Following caret\n{}", buffer_text(buffer)));
+    let initial = buffer_text(buffer);
     let wheel = mouse(MouseEventKind::ScrollUp, caret.x, caret.y);
     for _ in 0..3 {
         assert!(app.handle_owned_transcript_event(&mut tui, &mut server, &wheel)?);
+        assert_eq!(
+            buffer_text(crate::custom_terminal::test_support::last_rendered_buffer(
+                &tui.terminal,
+            )),
+            initial,
+        );
     }
     assert_eq!(app.chat_widget.capture_thread_input_state(), original);
     assert_eq!(app.render_owned_transcript(&mut tui, size)?, bottom);
