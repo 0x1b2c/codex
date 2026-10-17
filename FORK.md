@@ -24,13 +24,16 @@ steps do not each need a separate entry.
 
 Vim word motions in the composer now use punctuation and whitespace boundaries
 for Chinese text, without introducing dictionary-based word segmentation.
-Horizontal `h` and `l` stay on the current logical line, and word text objects
-handle whitespace consistently.
+The `w` / `b` / `e` motions and their `W` / `B` / `E` counterparts distinguish
+word and whitespace-delimited WORD boundaries. Horizontal `h` and `l` stay on
+the current logical line, and word text objects handle whitespace consistently.
 
 The same topic extends the existing Vim editor with counted motions and edits,
 counted dot repeat, repeated character searches, paste-before, characterwise and
 linewise Visual editing, line joining, bracket matching, paragraph motions and
-text objects, and numbered, named, and black-hole registers.
+text objects, and numbered, named, and black-hole registers. It also adds
+line-start navigation and `X` / `S`, including correct `cc` handling on empty
+lines.
 
 In the main conversation, Vim Normal mode uses Ctrl+U / Ctrl+D to scroll history
 by half a page and Ctrl+B / Ctrl+F by a full page, with the same one-row overlap
@@ -51,7 +54,9 @@ Ordinary history browsing no longer uses Esc to return to the bottom: Esc retain
 its existing editing, cancellation, prompt-backtracking, and task-interruption
 roles. Popups and dialogs retain ownership of their input.
 
-*Topic: `vim-editing`. Current range: `d8c2783d49..9e20c3ad07`.*
+*Topic: `vim-editing`. Initial implementation: `d8c2783d49..9e20c3ad07`.
+Main-view paging and `gg` / `G` follow-ups remain at the integration tip until
+the next upstream sync.*
 
 ### Prompt-cache timing should be visible
 
@@ -125,7 +130,7 @@ points to the final commit of that topic, and `master` is the integration tip.
 These are boundaries on one history, not independent branches repeatedly merged
 into the integration branch.
 
-The intended layout for the existing topics is:
+The intended layout for the original three implementation topics is:
 
 ```text
 upstream base
@@ -148,6 +153,8 @@ target layout; those separate topic refs and the bottom `fork-base` layer have
 not yet been established. They will be organized during the next upstream sync,
 without rewriting history just to introduce these conventions. The ranges in the
 feature list identify the actual implementation boundaries until then.
+Later topics, including usage-warning removal and wheel-rendering changes, also
+remain at the integration tip until their branch boundaries are established.
 
 ### Adding and maintaining patches
 
@@ -187,6 +194,25 @@ When upstream supersedes a patch, retain its entry with a strikethrough and an
 explanation. Preserve the original patch under `fork/superseded/<topic>` before
 dropping it from the active stack. Creating or publishing those tags follows
 the maintainer's normal Git workflow.
+
+## Scrolling configuration
+
+Codex already supports a mouse-wheel speed multiplier. Its default is one text
+row per wheel event, which can make trackpad navigation feel slow even when
+input is processed promptly. To travel farther with each gesture, set
+`mouse_scroll_speed` in `~/.codex/config.toml`, using the existing `[tui]` section
+if present:
+
+```toml
+[tui]
+mouse_scroll_speed = 3.0
+```
+
+This requests three rows per wheel event instead of one. Restart the CLI to use
+the setting; no rebuild is needed. Adjust the multiplier to taste. This is
+configuration tuning using an existing upstream option; the fork leaves the
+default unchanged. Scroll distance and rendering latency are separate concerns:
+this setting increases travel without fixing processing stalls.
 
 ## Building and running
 
