@@ -11,7 +11,6 @@ use crate::bottom_pane::SelectionViewParams;
 use crate::chatwidget::tests::helpers::render_bottom_popup;
 use crate::chatwidget::tests::helpers::set_active_cell;
 use crate::keymap::KeymapContext;
-#[cfg(unix)]
 use crate::pager_overlay::TranscriptHistoryState;
 use crate::test_support::test_path_display;
 use crate::tui::Tui;
@@ -157,6 +156,176 @@ async fn vim_normal_pages_history_without_changing_the_draft_or_cursor() -> Resu
             app.active_keymap_contexts()
                 .contains(KeymapContext::VimNormal)
         );
+        server.shutdown().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_normal_jumps_to_history_extents_without_changing_any_draft() -> Result<()> {
+    for text in ["", "one\ntwo\nthree"] {
+        for bottom in [
+            KeyCode::Char('G').into(),
+            KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT),
+        ] {
+            let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+            app.chat_widget.insert_str(text);
+            press(&mut app, &mut tui, &mut server, KeyCode::Char('h').into()).await?;
+            let draft = app.chat_widget.capture_thread_input_state();
+            let cursor = paging_draft_cursor(&app);
+            let before = paging_top_row(&mut app, &mut tui)?.0;
+            press(&mut app, &mut tui, &mut server, KeyCode::Char('g').into()).await?;
+            assert!(app.key_chord_matcher.is_pending());
+            assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+            press(&mut app, &mut tui, &mut server, KeyCode::Char('g').into()).await?;
+            assert_eq!(paging_top_row(&mut app, &mut tui)?.0, 0);
+            assert!(!app.key_chord_matcher.is_pending());
+            assert_eq!(app.chat_widget.capture_thread_input_state(), draft);
+            assert_eq!(paging_draft_cursor(&app), cursor);
+            press(&mut app, &mut tui, &mut server, bottom).await?;
+            assert!(app.transcript_view.is_following());
+            assert_eq!(app.chat_widget.capture_thread_input_state(), draft);
+            assert_eq!(paging_draft_cursor(&app), cursor);
+            server.shutdown().await?;
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_history_top_waits_for_unloaded_pages_and_bottom_cancels_loading() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.scrollback_has_older_history = true;
+    app.transcript_view.history = TranscriptHistoryState::Partial;
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    for _ in 0..2 {
+        press(&mut app, &mut tui, &mut server, KeyCode::Char('g').into()).await?;
+    }
+    assert_eq!(
+        app.transcript_view.history,
+        TranscriptHistoryState::LoadingBeginning
+    );
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    press(&mut app, &mut tui, &mut server, KeyCode::Char('G').into()).await?;
+    assert!(app.transcript_view.is_following());
+    assert_ne!(
+        app.transcript_view.history,
+        TranscriptHistoryState::LoadingBeginning
+    );
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_history_extents_leave_editing_and_pending_commands_with_the_draft() -> Result<()> {
+    for command in ["i", "v", "d", "c", "2", "/", "f"] {
+        let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+        app.chat_widget.insert_str("one\ntwo\nthree");
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        for key in command.chars().chain("G".chars()) {
+            press(&mut app, &mut tui, &mut server, KeyCode::Char(key).into()).await?;
+        }
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before, "{command}G");
+        server.shutdown().await?;
+    }
+    for (command, expected) in [("dgg", ""), ("kk0cG", "")] {
+        let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+        app.chat_widget.insert_str("one\ntwo\nthree");
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        for key in command.chars() {
+            press(&mut app, &mut tui, &mut server, KeyCode::Char(key).into()).await?;
+        }
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before, "{command}");
+        assert_eq!(
+            app.chat_widget.composer_text_with_pending(),
+            expected,
+            "{command}"
+        );
+        server.shutdown().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_history_navigation_keeps_hjkl_in_the_draft() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.chat_widget.insert_str("one\ntwo\nthree");
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    let cursor = paging_draft_cursor(&app);
+    for key in "hklj".chars() {
+        press(&mut app, &mut tui, &mut server, KeyCode::Char(key).into()).await?;
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    }
+    assert_ne!(paging_draft_cursor(&app), cursor);
+    assert_eq!(
+        app.chat_widget.composer_text_with_pending(),
+        "one\ntwo\nthree"
+    );
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_history_extents_reuse_configured_chords_and_respect_other_bindings() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    let config = toml::from_str(
+        "[vim_normal]\njump_top = 'z z'\njump_bottom = 'z b'\n[global]\ntoggle_raw_output = 'G'\n",
+    )?;
+    app.keymap = RuntimeKeymap::from_config(&config).expect("valid history jump bindings");
+    app.chat_widget
+        .apply_keymap_update(config.clone(), &app.keymap);
+    app.local_settings.tui.keymap = config;
+    app.chat_widget.insert_str("draft");
+    let cursor = paging_draft_cursor(&app);
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    press(&mut app, &mut tui, &mut server, KeyCode::Char('G').into()).await?;
+    assert!(app.chat_widget.raw_output_mode());
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    for key in "zz".chars() {
+        press(&mut app, &mut tui, &mut server, KeyCode::Char(key).into()).await?;
+    }
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, 0);
+    for key in "zb".chars() {
+        press(&mut app, &mut tui, &mut server, KeyCode::Char(key).into()).await?;
+    }
+    assert!(app.transcript_view.is_following());
+    assert_eq!(app.chat_widget.composer_text_with_pending(), "draft");
+    assert_eq!(paging_draft_cursor(&app), cursor);
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_history_gg_cancellation_timeout_and_mode_changes_do_not_leak_prefixes() -> Result<()> {
+    for boundary in ["escape", "timeout", "mode", "focus", "wrong"] {
+        let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+        app.chat_widget.insert_str("draft");
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        press(&mut app, &mut tui, &mut server, KeyCode::Char('g').into()).await?;
+        assert!(app.key_chord_matcher.is_pending());
+        match boundary {
+            "escape" => press(&mut app, &mut tui, &mut server, KeyCode::Esc.into()).await?,
+            "timeout" => {
+                tokio::time::pause();
+                tokio::time::advance(crate::keymap::KEY_CHORD_TIMEOUT).await;
+                app.handle_tui_event(&mut tui, &mut server, TuiEvent::Draw)
+                    .await?;
+            }
+            "mode" => {
+                app.chat_widget.toggle_vim_mode_and_notify();
+            }
+            "wrong" => {
+                press(&mut app, &mut tui, &mut server, KeyCode::Char('h').into()).await?;
+            }
+            "focus" => {
+                app.handle_tui_event(&mut tui, &mut server, TuiEvent::FocusLost)
+                    .await?;
+            }
+            _ => unreachable!(),
+        }
+        press(&mut app, &mut tui, &mut server, KeyCode::Char('g').into()).await?;
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before, "{boundary}");
+        assert_eq!(app.key_chord_matcher.is_pending(), boundary != "mode");
         server.shutdown().await?;
     }
     Ok(())

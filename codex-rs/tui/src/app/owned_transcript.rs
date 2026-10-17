@@ -582,10 +582,18 @@ impl App {
             })
         ) && self.enter_returns_to_latest()
             && self.transcript_view.can_return_to_latest();
+        let vim_paging = self.chat_widget.composer_allows_vim_transcript_paging()
+            && self
+                .active_keymap_contexts()
+                .contains(KeymapContext::VimNormal)
+            && !self.backtrack.overlay_preview_active;
         if let TuiEvent::Key(key) = event
             && !self.transcript_view.has_active_interaction()
             && keymap_action_ids().any(|action| {
                 action.context != KeymapContext::Pager
+                    && !(vim_paging
+                        && action.context == KeymapContext::VimNormal
+                        && matches!(action.action, "jump_top" | "jump_bottom"))
                     && !matches!(action.action, "find_transcript" | "focus_activity")
                     && self.active_keymap_contexts().contains_action(action)
                     && !(empty_enter_returns_to_latest
@@ -606,11 +614,6 @@ impl App {
         {
             return Ok(false);
         }
-        let vim_paging = self.chat_widget.composer_allows_vim_transcript_paging()
-            && self
-                .active_keymap_contexts()
-                .contains(KeymapContext::VimNormal)
-            && !self.backtrack.overlay_preview_active;
         let action = match event {
             TuiEvent::Key(key)
                 if !self.transcript_view.is_search_editing()
@@ -625,11 +628,21 @@ impl App {
                 let action = self
                     .transcript_view
                     .handle_key(*key, &self.transcript_cells);
-                if action.is_some() || !vim_paging || !self.vim_paging_key_allowed(*key) {
+                if action.is_some() || !vim_paging {
                     action
-                } else {
+                } else if self.keymap.vim_normal.jump_top.is_pressed(*key) {
+                    // Completed chords carry the same dispatch token as configured single keys.
+                    self.transcript_view
+                        .jump_to_beginning(&self.transcript_cells);
+                    Some(ViewAction::Changed)
+                } else if self.keymap.vim_normal.jump_bottom.is_pressed(*key) {
+                    self.transcript_view.jump_to_latest();
+                    Some(ViewAction::Changed)
+                } else if self.vim_paging_key_allowed(*key) {
                     self.transcript_view
                         .handle_vim_page_key(*key, &self.transcript_cells)
+                } else {
+                    None
                 }
             }
             TuiEvent::Mouse(mouse) if modal_transcript_mouse => self

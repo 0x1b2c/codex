@@ -35,9 +35,13 @@ text objects, and numbered, named, and black-hole registers.
 In the main conversation, Vim Normal mode uses Ctrl+U / Ctrl+D to scroll history
 by half a page and Ctrl+B / Ctrl+F by a full page, with the same one-row overlap
 as Page Up / Page Down. These motions reuse the pager keybindings; explicit active
-editor or app bindings take priority. Insert mode keeps its existing editing
-shortcuts, and `j` / `k` still edit the draft. Ctrl+T opens the transcript browser
-for dedicated history navigation.
+editor or app bindings take priority. `gg` jumps to the beginning of history,
+loading older pages when needed, and `G` returns to the latest output. These jumps
+reuse the Vim `jump_top` / `jump_bottom` bindings and browse history even with a
+nonempty draft, preserving its text and cursor. Insert and Visual mode and pending
+editing commands keep their editor behavior; `h` / `j` / `k` / `l` still move the
+draft cursor. Ctrl+T toggles detailed transcript display without changing input
+focus in the main fullscreen view.
 
 *Topic: `vim-editing`. Current range: `d8c2783d49..9e20c3ad07`.*
 
