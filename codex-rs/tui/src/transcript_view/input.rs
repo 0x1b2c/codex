@@ -430,19 +430,10 @@ impl TranscriptView {
                 // Share page-key configuration without taking the pager's typing shortcuts.
                 // Full pages retain the main view's existing one-row overlap.
                 let keymap = &self.disclosure.keymap.pager;
-                let height = self.area.height.max(/*other*/ 1) as isize;
-                let page = (height - 1).max(/*other*/ 1);
-                let half = (height + 1) / 2;
-                let delta = [
-                    (&keymap.scroll_up, -1),
-                    (&keymap.scroll_down, 1),
-                    (&keymap.page_up, -page),
-                    (&keymap.page_down, page),
-                    (&keymap.half_page_up, -half),
-                    (&keymap.half_page_down, half),
-                ]
-                .into_iter()
-                .find_map(|(bindings, delta)| bindings.is_pressed(key).then_some(delta))?;
+                let delta = [(&keymap.scroll_up, -1), (&keymap.scroll_down, 1)]
+                    .into_iter()
+                    .find_map(|(bindings, delta)| bindings.is_pressed(key).then_some(delta))
+                    .or_else(|| self.page_scroll_rows(key))?;
                 self.scroll(cells, delta);
             }
             (KeyCode::Esc, KeyModifiers::NONE) if self.can_return_to_latest() => {
@@ -455,6 +446,32 @@ impl TranscriptView {
             _ => return None,
         }
         Some(ViewAction::Changed)
+    }
+
+    /// Share configured page motions without taking the pager's ordinary typing keys.
+    pub(crate) fn handle_vim_page_key(
+        &mut self,
+        key: KeyEvent,
+        cells: &[Arc<dyn HistoryCell>],
+    ) -> Option<ViewAction> {
+        let delta = self.page_scroll_rows(key)?;
+        self.scroll(cells, delta);
+        Some(ViewAction::Changed)
+    }
+
+    fn page_scroll_rows(&self, key: KeyEvent) -> Option<isize> {
+        let keymap = &self.disclosure.keymap.pager;
+        let height = self.area.height.max(/*other*/ 1) as isize;
+        let page = (height - 1).max(/*other*/ 1);
+        let half = (height + 1) / 2;
+        [
+            (&keymap.page_up, -page),
+            (&keymap.page_down, page),
+            (&keymap.half_page_up, -half),
+            (&keymap.half_page_down, half),
+        ]
+        .into_iter()
+        .find_map(|(bindings, delta)| bindings.is_pressed(key).then_some(delta))
     }
 
     fn pointer_down(

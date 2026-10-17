@@ -1403,6 +1403,11 @@ impl ChatComposer {
         self.draft.textarea.is_vim_enabled()
     }
 
+    /// Allow transcript paging only between complete Normal-mode commands.
+    pub(crate) fn allows_vim_transcript_paging(&self) -> bool {
+        self.draft.textarea.is_vim_normal_mode() && !self.draft.textarea.is_vim_operator_pending()
+    }
+
     /// Return whether Escape should be routed to the textarea before popups.
     ///
     /// Vim insert mode owns Escape as a transition back to normal mode. The app

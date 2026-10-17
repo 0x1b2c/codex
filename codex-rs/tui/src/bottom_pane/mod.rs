@@ -1789,6 +1789,10 @@ impl BottomPane {
         self.composer.is_vim_enabled()
     }
 
+    pub(crate) fn composer_allows_vim_transcript_paging(&self) -> bool {
+        self.composer.allows_vim_transcript_paging()
+    }
+
     pub(crate) fn composer_should_handle_vim_insert_escape(&self, key_event: KeyEvent) -> bool {
         self.composer.should_handle_vim_insert_escape(key_event)
     }

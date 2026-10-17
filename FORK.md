@@ -32,6 +32,13 @@ counted dot repeat, repeated character searches, paste-before, characterwise and
 linewise Visual editing, line joining, bracket matching, paragraph motions and
 text objects, and numbered, named, and black-hole registers.
 
+In the main conversation, Vim Normal mode uses Ctrl+U / Ctrl+D to scroll history
+by half a page and Ctrl+B / Ctrl+F by a full page, with the same one-row overlap
+as Page Up / Page Down. These motions reuse the pager keybindings; explicit active
+editor or app bindings take priority. Insert mode keeps its existing editing
+shortcuts, and `j` / `k` still edit the draft. Ctrl+T opens the transcript browser
+for dedicated history navigation.
+
 *Topic: `vim-editing`. Current range: `d8c2783d49..9e20c3ad07`.*
 
 ### Prompt-cache timing should be visible

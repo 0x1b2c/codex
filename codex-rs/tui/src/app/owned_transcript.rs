@@ -606,6 +606,11 @@ impl App {
         {
             return Ok(false);
         }
+        let vim_paging = self.chat_widget.composer_allows_vim_transcript_paging()
+            && self
+                .active_keymap_contexts()
+                .contains(KeymapContext::VimNormal)
+            && !self.backtrack.overlay_preview_active;
         let action = match event {
             TuiEvent::Key(key)
                 if !self.transcript_view.is_search_editing()
@@ -614,9 +619,19 @@ impl App {
                 self.transcript_view.begin_search();
                 Some(ViewAction::Changed)
             }
-            TuiEvent::Key(key) => self
-                .transcript_view
-                .handle_key(*key, &self.transcript_cells),
+            TuiEvent::Key(key) => {
+                // Search, selection, and copy mode retain ownership before Normal-mode paging.
+                // In particular, an empty Normal-mode Ctrl-D must not reach the quit handler.
+                let action = self
+                    .transcript_view
+                    .handle_key(*key, &self.transcript_cells);
+                if action.is_some() || !vim_paging || !self.vim_paging_key_allowed(*key) {
+                    action
+                } else {
+                    self.transcript_view
+                        .handle_vim_page_key(*key, &self.transcript_cells)
+                }
+            }
             TuiEvent::Mouse(mouse) if modal_transcript_mouse => self
                 .transcript_view
                 .handle_selection_mouse(*mouse, &self.transcript_cells),
@@ -669,6 +684,23 @@ impl App {
         self.request_owned_history(tui, app_server);
         tui.frame_requester().schedule_frame();
         Ok(true)
+    }
+
+    /// Leave the pager's default Space/Shift-Space shortcuts with the draft editor.
+    fn vim_paging_key_allowed(&self, key: KeyEvent) -> bool {
+        if !crate::key_hint::is_plain_text_key_event(key) {
+            return true;
+        }
+        let configured = &self.local_settings.tui.keymap.pager;
+        let pager = &self.keymap.pager;
+        [
+            (configured.page_up.is_some(), &pager.page_up),
+            (configured.page_down.is_some(), &pager.page_down),
+            (configured.half_page_up.is_some(), &pager.half_page_up),
+            (configured.half_page_down.is_some(), &pager.half_page_down),
+        ]
+        .into_iter()
+        .any(|(configured, bindings)| configured && bindings.is_pressed(key))
     }
 
     /// Keep the navigation hint and input guard aligned, including pending paste and attachments.

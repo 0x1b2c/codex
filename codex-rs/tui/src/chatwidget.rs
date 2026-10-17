@@ -1743,6 +1743,10 @@ impl ChatWidget {
         self.bottom_pane.composer_is_vim_enabled()
     }
 
+    pub(crate) fn composer_allows_vim_transcript_paging(&self) -> bool {
+        self.bottom_pane.composer_allows_vim_transcript_paging()
+    }
+
     #[cfg(test)]
     pub(crate) fn is_task_running_for_test(&self) -> bool {
         self.bottom_pane.is_task_running()

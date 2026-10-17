@@ -65,6 +65,267 @@ fn ctrl(ch: char) -> KeyEvent {
     KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL)
 }
 
+async fn vim_paging_app() -> Result<(
+    Box<App>,
+    Tui,
+    AppServerSession,
+    tokio::sync::mpsc::UnboundedReceiver<super::AppEvent>,
+)> {
+    let (mut app, events, _operations) = super::make_test_app_with_channels().await;
+    let server = start_config_write_test_app_server(&app).await?;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(/*owned*/ true)?;
+    app.chat_widget.toggle_vim_mode_and_notify();
+    app.transcript_cells = vec![std::sync::Arc::new(
+        crate::history_cell::PlainHistoryCell::new(
+            (0..200)
+                .map(|row| ratatui::text::Line::from(format!("row {row}")))
+                .collect(),
+        ),
+    )];
+    let size = tui.prepare_draw_size()?;
+    app.render_owned_transcript(&mut tui, size)?;
+    app.transcript_view.jump_to_beginning(&app.transcript_cells);
+    app.transcript_view.scroll(&app.transcript_cells, 60);
+    Ok((app, tui, server, events))
+}
+
+fn paging_top_row(app: &mut App, tui: &mut Tui) -> Result<(isize, isize)> {
+    let size = tui.prepare_draw_size()?;
+    app.render_owned_transcript(tui, size)?;
+    let remaining = app.transcript_view.remaining_area();
+    let area = ratatui::layout::Rect::new(0, 0, remaining.width, remaining.y);
+    let mut buffer = ratatui::buffer::Buffer::empty(area);
+    app.transcript_view
+        .render(area, &mut buffer, &app.transcript_cells);
+    let first_row = buffer
+        .content
+        .iter()
+        .take(usize::from(area.width))
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    let row = first_row
+        .trim()
+        .strip_prefix("row ")
+        .expect("numbered history row")
+        .parse()?;
+    Ok((row, isize::from(area.height)))
+}
+
+fn paging_draft_cursor(app: &App) -> Option<(u16, u16)> {
+    use crate::render::renderable::Renderable;
+
+    app.chat_widget
+        .bottom_pane_renderable(crate::bottom_pane::ComposerRenderOptions::default())
+        .cursor_pos(ratatui::layout::Rect::new(0, 0, 80, 12))
+}
+
+#[tokio::test]
+async fn vim_normal_pages_history_without_changing_the_draft_or_cursor() -> Result<()> {
+    for (key, direction, half) in [
+        ('u', -1, true),
+        ('d', 1, true),
+        ('b', -1, false),
+        ('f', 1, false),
+    ] {
+        let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+        app.chat_widget.insert_str("preserved draft");
+        press(&mut app, &mut tui, &mut server, KeyCode::Char('h').into()).await?;
+        let draft = app.chat_widget.capture_thread_input_state();
+        let cursor = paging_draft_cursor(&app);
+        assert!(cursor.is_some());
+        let (before, height) = paging_top_row(&mut app, &mut tui)?;
+        assert!(matches!(
+            app.handle_tui_event(&mut tui, &mut server, TuiEvent::Key(ctrl(key)))
+                .await?,
+            super::AppRunControl::Continue
+        ));
+        let (after, _) = paging_top_row(&mut app, &mut tui)?;
+        let distance = if half {
+            (height + 1) / 2
+        } else {
+            (height - 1).max(1)
+        };
+        assert_eq!(after - before, direction * distance, "Ctrl+{key}");
+        assert_eq!(
+            app.chat_widget.capture_thread_input_state(),
+            draft,
+            "Ctrl+{key}"
+        );
+        assert_eq!(paging_draft_cursor(&app), cursor, "Ctrl+{key}");
+        assert!(
+            app.active_keymap_contexts()
+                .contains(KeymapContext::VimNormal)
+        );
+        server.shutdown().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_normal_empty_draft_ctrl_d_pages_instead_of_quitting_even_after_selection() -> Result<()>
+{
+    for selected in [false, true] {
+        let (mut app, mut tui, mut server, mut events) = vim_paging_app().await?;
+        if selected {
+            press(&mut app, &mut tui, &mut server, ctrl(' ')).await?;
+            assert!(app.transcript_view.has_active_interaction());
+        }
+        let (before, height) = paging_top_row(&mut app, &mut tui)?;
+        assert!(matches!(
+            app.handle_tui_event(&mut tui, &mut server, TuiEvent::Key(ctrl('d')))
+                .await?,
+            super::AppRunControl::Continue
+        ));
+        assert_eq!(
+            paging_top_row(&mut app, &mut tui)?.0 - before,
+            (height + 1) / 2
+        );
+        assert!(app.chat_widget.composer_is_empty());
+        while let Ok(event) = events.try_recv() {
+            assert!(!matches!(event, super::AppEvent::Exit(_)));
+        }
+        server.shutdown().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_paging_preserves_insert_and_non_vim_editor_shortcuts() -> Result<()> {
+    for vim_insert in [true, false] {
+        let (mut app, mut tui, mut server, mut events) = vim_paging_app().await?;
+        if vim_insert {
+            press(&mut app, &mut tui, &mut server, KeyCode::Char('i').into()).await?;
+        } else {
+            app.chat_widget.toggle_vim_mode_and_notify();
+        }
+        app.chat_widget.insert_str("draft");
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        press(&mut app, &mut tui, &mut server, ctrl('b')).await?;
+        app.chat_widget.insert_str("X");
+        assert_eq!(app.chat_widget.composer_text_with_pending(), "drafXt");
+        press(&mut app, &mut tui, &mut server, ctrl('f')).await?;
+        app.chat_widget.insert_str("Y");
+        assert_eq!(app.chat_widget.composer_text_with_pending(), "drafXtY");
+        press(&mut app, &mut tui, &mut server, ctrl('u')).await?;
+        assert!(app.chat_widget.composer_is_empty());
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+        press(&mut app, &mut tui, &mut server, ctrl('d')).await?;
+        assert!(
+            std::iter::from_fn(|| events.try_recv().ok())
+                .any(|event| matches!(event, super::AppEvent::Exit(_)))
+        );
+        server.shutdown().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_paging_respects_custom_bindings_and_release_events() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    let config = toml::from_str(
+        "[global]\ntoggle_raw_output = 'ctrl-u'\n[pager]\npage_up = 'ctrl-y'\npage_down = 'z'\n",
+    )?;
+    app.keymap = RuntimeKeymap::from_config(&config).expect("valid paging bindings");
+    app.chat_widget
+        .apply_keymap_update(config.clone(), &app.keymap);
+    app.local_settings.tui.keymap = config;
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    press(&mut app, &mut tui, &mut server, ctrl('u')).await?;
+    assert!(app.chat_widget.raw_output_mode());
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    let mut release = ctrl('d');
+    release.kind = crossterm::event::KeyEventKind::Release;
+    press(&mut app, &mut tui, &mut server, release).await?;
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    let (_, height) = paging_top_row(&mut app, &mut tui)?;
+    press(&mut app, &mut tui, &mut server, ctrl('y')).await?;
+    assert_eq!(
+        paging_top_row(&mut app, &mut tui)?.0,
+        before - (height - 1).max(1)
+    );
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    let mut repeat = ctrl('d');
+    repeat.kind = crossterm::event::KeyEventKind::Repeat;
+    press(&mut app, &mut tui, &mut server, repeat).await?;
+    assert_eq!(
+        paging_top_row(&mut app, &mut tui)?.0 - before,
+        (height + 1) / 2
+    );
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    press(&mut app, &mut tui, &mut server, KeyCode::Char('z').into()).await?;
+    assert_eq!(
+        paging_top_row(&mut app, &mut tui)?.0 - before,
+        (height - 1).max(1)
+    );
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_paging_leaves_visual_pending_commands_and_search_with_their_editor() -> Result<()> {
+    for command in ['v', 'd', '/', '2'] {
+        let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+        app.chat_widget.insert_str("draft text");
+        press(
+            &mut app,
+            &mut tui,
+            &mut server,
+            KeyCode::Char(command).into(),
+        )
+        .await?;
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        press(&mut app, &mut tui, &mut server, ctrl('b')).await?;
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before, "{command}");
+        server.shutdown().await?;
+    }
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.transcript_view.begin_search();
+    press(&mut app, &mut tui, &mut server, ctrl('d')).await?;
+    assert!(app.transcript_view.is_search_editing());
+    assert!(app.chat_widget.composer_is_empty());
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_paging_does_not_take_default_space_or_shift_space_from_the_draft() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.chat_widget.insert_str("draft text");
+    for modifiers in [KeyModifiers::NONE, KeyModifiers::SHIFT] {
+        let before = paging_top_row(&mut app, &mut tui)?.0;
+        press(
+            &mut app,
+            &mut tui,
+            &mut server,
+            KeyEvent::new(KeyCode::Char(' '), modifiers),
+        )
+        .await?;
+        assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    }
+    server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn vim_paging_leaves_modal_navigation_with_the_modal() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.chat_widget.show_selection_view(SelectionViewParams {
+        title: Some("Select an item".to_owned()),
+        items: vec![SelectionItem {
+            name: "First".to_owned(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    let before = paging_top_row(&mut app, &mut tui)?.0;
+    press(&mut app, &mut tui, &mut server, ctrl('b')).await?;
+    assert!(app.chat_widget.has_active_view());
+    assert_eq!(paging_top_row(&mut app, &mut tui)?.0, before);
+    server.shutdown().await?;
+    Ok(())
+}
+
 #[tokio::test]
 async fn vim_buffer_jumps_route_default_chords_in_normal_and_operator_contexts() -> Result<()> {
     for (input, command, expected) in [
