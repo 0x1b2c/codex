@@ -242,7 +242,7 @@ async fn older_page_loading_uses_the_status_row_without_moving_content_or_cursor
             if state == TranscriptHistoryState::Complete {
                 assert_eq!(
                     buffer_text(buffer).lines().last().unwrap().trim(),
-                    "esc latest",
+                    "⌃⌥e latest",
                 );
             }
             if state == TranscriptHistoryState::LoadingOlder {

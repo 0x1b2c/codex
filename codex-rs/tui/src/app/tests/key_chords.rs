@@ -120,6 +120,110 @@ fn paging_draft_cursor(app: &App) -> Option<(u16, u16)> {
 }
 
 #[tokio::test]
+async fn latest_shortcut_preserves_every_composer_mode_while_work_is_running() -> Result<()> {
+    for (mode, enhanced) in ["normal", "insert", "visual", "non-vim"]
+        .into_iter()
+        .flat_map(|mode| [false, true].map(|enhanced| (mode, enhanced)))
+    {
+        let (mut app, mut tui, mut server, mut events) = vim_paging_app().await?;
+        app.enhanced_keys_supported = enhanced;
+        crate::app::owned_transcript::tests::attach_thread(
+            &mut app,
+            codex_protocol::ThreadId::new(),
+        );
+        app.chat_widget
+            .apply_external_edit("preserved draft".into());
+        press(&mut app, &mut tui, &mut server, KeyCode::Esc.into()).await?;
+        match mode {
+            "insert" => press(&mut app, &mut tui, &mut server, KeyCode::Char('i').into()).await?,
+            "visual" => press(&mut app, &mut tui, &mut server, KeyCode::Char('v').into()).await?,
+            "non-vim" => app.chat_widget.toggle_vim_mode_and_notify(),
+            _ => {}
+        }
+        app.chat_widget.handle_server_notification(
+            codex_app_server_protocol::ServerNotification::TurnStarted(
+                codex_app_server_protocol::TurnStartedNotification {
+                    thread_id: app.chat_widget.thread_id().unwrap().to_string(),
+                    turn: codex_app_server_protocol::Turn {
+                        id: "active-turn".into(),
+                        root_turn_id: None,
+                        items_view: codex_app_server_protocol::TurnItemsView::Full,
+                        items: Vec::new(),
+                        status: codex_app_server_protocol::TurnStatus::InProgress,
+                        error: None,
+                        started_at: None,
+                        completed_at: None,
+                        duration_ms: None,
+                    },
+                },
+            ),
+            None,
+        );
+        assert!(app.chat_widget.is_task_running_for_test());
+        app.transcript_view.scroll(&app.transcript_cells, -20);
+        let draft = app.chat_widget.capture_thread_input_state();
+        let cursor = paging_draft_cursor(&app);
+        let contexts = app.active_keymap_contexts();
+        while events.try_recv().is_ok() {}
+        let latest = KeyEvent::new(
+            KeyCode::Char('e'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        );
+        let release = KeyEvent::new_with_kind(
+            latest.code,
+            latest.modifiers,
+            crossterm::event::KeyEventKind::Release,
+        );
+        press(&mut app, &mut tui, &mut server, release).await?;
+        assert!(!app.transcript_view.is_following());
+        for _ in 0..2 {
+            press(&mut app, &mut tui, &mut server, latest).await?;
+            assert!(app.transcript_view.is_following(), "{mode}");
+            assert_eq!(
+                app.chat_widget.capture_thread_input_state(),
+                draft,
+                "{mode}"
+            );
+            assert_eq!(paging_draft_cursor(&app), cursor, "{mode}");
+            assert_eq!(app.active_keymap_contexts(), contexts, "{mode}");
+        }
+        let repeat = KeyEvent::new_with_kind(
+            latest.code,
+            latest.modifiers,
+            crossterm::event::KeyEventKind::Repeat,
+        );
+        press(&mut app, &mut tui, &mut server, repeat).await?;
+        assert!(app.transcript_view.is_following());
+        assert_eq!(app.chat_widget.capture_thread_input_state(), draft);
+        assert!(
+            !std::iter::from_fn(|| events.try_recv().ok()).any(|event| matches!(
+                event,
+                super::AppEvent::CodexOp(_) | super::AppEvent::Exit(_)
+            ))
+        );
+        server.shutdown().await?;
+        tui.set_owned_screen(false)?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn latest_shortcut_does_not_take_keys_from_a_composer_popup() -> Result<()> {
+    let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
+    app.chat_widget.apply_external_edit("/".into());
+    assert!(!app.chat_widget.no_modal_or_popup_active());
+    let latest = TuiEvent::Key(KeyEvent::new(
+        KeyCode::Char('e'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert!(!app.handle_owned_transcript_event(&mut tui, &mut server, &latest)?);
+    assert!(!app.transcript_view.is_following());
+    server.shutdown().await?;
+    tui.set_owned_screen(false)?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn vim_normal_pages_history_without_changing_the_draft_or_cursor() -> Result<()> {
     for (key, direction, half) in [
         ('u', -1, true),

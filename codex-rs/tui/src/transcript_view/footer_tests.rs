@@ -303,8 +303,8 @@ fn reading_a_find_result_shows_history_loading_and_failure() {
         hints.push(footer.text.to_string());
     }
     insta::assert_snapshot!(hints.join("\n"), @"
-    ↑ Loading earlier messages… · esc latest
-    Retry history: ⌥</⌃home.  esc latest
+    ↑ Loading earlier messages… · ⌃⌥e latest
+    Retry history: ⌥</⌃home.  ⌃⌥e latest
     Find · ctrl+p older · ctrl+n newer · esc latest
     ");
 }
@@ -331,13 +331,13 @@ fn loading_completion_restores_unseen_activity_and_failure_stops_motion() {
         .footer(/*width*/ 80, MotionMode::Reduced)
         .expect("loading footer");
     assert_eq!(loading.text.lines[0].spans[0], "↑ ".fg(accent_color()));
-    insta::assert_snapshot!(loading.text.to_string(), @"↑ Loading earlier messages… · New activity · esc latest");
+    insta::assert_snapshot!(loading.text.to_string(), @"↑ Loading earlier messages… · New activity · ⌃⌥e latest");
     view.history = TranscriptHistoryState::Failed;
     assert!(!view.is_loading_history());
     let failed = view
         .footer(/*width*/ 80, MotionMode::Reduced)
         .expect("failed history footer");
-    insta::assert_snapshot!(failed.text.to_string(), @"New activity · Retry history: ⌥</⌃home.  esc latest");
+    insta::assert_snapshot!(failed.text.to_string(), @"New activity · Retry history: ⌥</⌃home.  ⌃⌥e latest");
     view.history = TranscriptHistoryState::Complete;
     assert!(!view.is_loading_history());
     assert_eq!(
@@ -539,6 +539,13 @@ fn transcript_footer_keys_remain_distinct_from_prose_and_query_text() {
 
 impl TranscriptView {
     pub(crate) fn footer(&self, width: u16, motion: MotionMode) -> Option<TranscriptFooter> {
-        self.footer_with_navigation(width, motion, "esc latest")
+        self.footer_with_navigation(
+            width,
+            motion,
+            &format!(
+                "{} latest",
+                crate::key_hint::ctrl_alt(KeyCode::Char('e')).display_label()
+            ),
+        )
     }
 }

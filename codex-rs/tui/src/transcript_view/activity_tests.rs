@@ -62,7 +62,7 @@ fn unchanged_live_revisions_do_not_report_activity_but_hidden_text_does() {
 }
 
 #[test]
-fn escape_closes_selection_and_search_before_returning_to_latest() {
+fn escape_closes_interactions_but_only_latest_shortcut_resumes_following() {
     let mut cells = vec![cell("one\ntwo\nthree\nfour")];
     let mut view = TranscriptView::default();
     render(&mut view, &cells, /*height*/ 3);
@@ -78,8 +78,14 @@ fn escape_closes_selection_and_search_before_returning_to_latest() {
     view.handle_key(escape, &cells);
     assert!(!view.is_search_editing());
     assert!(!view.is_following());
+    assert!(view.handle_key(escape, &cells).is_none());
+    assert!(!view.is_following());
+    let latest = KeyEvent::new(
+        KeyCode::Char('e'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    );
     assert!(matches!(
-        view.handle_key(escape, &cells),
+        view.handle_key(latest, &cells),
         Some(ViewAction::Changed)
     ));
     assert!(view.is_following());

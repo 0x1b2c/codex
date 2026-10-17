@@ -43,6 +43,14 @@ editing commands keep their editor behavior; `h` / `j` / `k` / `l` still move th
 draft cursor. Ctrl+T toggles detailed transcript display without changing input
 focus in the main fullscreen view.
 
+Ctrl+Option+E on macOS (Ctrl+Alt+E elsewhere) returns to the latest output in the
+main fullscreen conversation, whether the composer is in Vim Normal, Insert,
+Visual, or non-Vim mode. It preserves the draft, cursor, and editing mode, and is
+safe to press repeatedly while a task is running. Ctrl+End and Alt+> still work.
+Ordinary history browsing no longer uses Esc to return to the bottom: Esc retains
+its existing editing, cancellation, prompt-backtracking, and task-interruption
+roles. Popups and dialogs retain ownership of their input.
+
 *Topic: `vim-editing`. Current range: `d8c2783d49..9e20c3ad07`.*
 
 ### Prompt-cache timing should be visible

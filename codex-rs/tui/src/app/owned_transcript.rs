@@ -91,10 +91,11 @@ impl App {
             self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
         );
         let composer = self.first_screen_composer();
+        let latest_key = crate::key_hint::ctrl_alt(KeyCode::Char('e')).display_label();
         let latest_navigation = if self.enter_returns_to_latest() {
-            "enter/esc latest"
+            format!("enter/{latest_key} latest")
         } else {
-            "esc latest"
+            format!("{latest_key} latest")
         };
         self.sync_owned_transcript(screen_size.width);
         let transcript_width = self.chat_widget.history_wrap_width(screen_size.width);
@@ -142,7 +143,7 @@ impl App {
             screen_size.width,
             /*height*/ 1,
         ));
-        let footer = view.footer_with_navigation(footer_area.width, motion, latest_navigation);
+        let footer = view.footer_with_navigation(footer_area.width, motion, &latest_navigation);
         // Cap the whole composer (including padding and hints) at two-thirds of the screen,
         // but allow at least 8 rows on small screens, without exceeding the screen itself.
         let max_composer_height = ((u32::from(screen_size.height) * 2 / 3) as u16)
@@ -220,7 +221,7 @@ impl App {
             // Rendering resolves whether new activity is still hidden. Paint that result in
             // this frame so a revision change cannot flash a stale activity hint.
             let mut footer =
-                view.footer_with_navigation(footer_area.width, motion, latest_navigation);
+                view.footer_with_navigation(footer_area.width, motion, &latest_navigation);
             if let Some(footer) = prompt_footer
                 .as_mut()
                 .or(footer.as_mut())
@@ -520,7 +521,7 @@ impl App {
         {
             return Ok(false);
         }
-        // Visible shortcut help owns Escape before returning a paused viewport to latest.
+        // Visible shortcut help owns Escape before session navigation.
         // A transcript search or selection still owns Escape while it replaces the help footer.
         if let TuiEvent::Key(key) = event
             && !self.transcript_view.has_active_interaction()
@@ -535,7 +536,7 @@ impl App {
         {
             return Ok(false);
         }
-        // Prompt preview owns its navigation before ordinary Escape-to-latest scrolling.
+        // Prompt preview owns its navigation before ordinary transcript scrolling.
         // Selection and search retain their existing priority and keep the prompt untouched.
         if self.backtrack.overlay_preview_active
             && !self.transcript_view.has_active_interaction()
@@ -544,7 +545,7 @@ impl App {
             self.request_owned_history(tui, app_server);
             return Ok(true);
         }
-        // Capture the origin before the first Escape returns a paused viewport to latest.
+        // Preserve prompt backtracking's own Escape navigation and reading origin.
         if !self.backtrack.overlay_preview_active
             && !self.transcript_view.has_active_interaction()
             && !self.reconnect.offline

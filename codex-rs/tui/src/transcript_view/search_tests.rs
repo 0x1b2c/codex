@@ -1009,8 +1009,8 @@ fn find_expands_only_the_match_and_preserves_manual_disclosures() {
         );
     }
     insta::assert_snapshot!(hints.join("\n"), @"
-    ↑ Loading earlier messages… · esc latest
-    Retry history: ⌥</⌃home.  esc latest
+    ↑ Loading earlier messages… · ⌃⌥e latest
+    Retry history: ⌥</⌃home.  ⌃⌥e latest
     ↑ previous · ↓ next · enter details · esc back
     ");
     view.handle_key(KeyCode::Enter.into(), &cells);

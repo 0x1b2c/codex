@@ -59,6 +59,9 @@ impl JumpTarget {
         if key.kind == KeyEventKind::Release {
             return None;
         }
+        if crate::key_hint::ctrl_alt(KeyCode::Char('e')).is_press(key) {
+            return Some(Self::Latest);
+        }
         match (key.code, key.modifiers) {
             (KeyCode::Home, KeyModifiers::CONTROL) => Some(Self::Beginning),
             (KeyCode::End, KeyModifiers::CONTROL) => Some(Self::Latest),
@@ -435,9 +438,6 @@ impl TranscriptView {
                     .find_map(|(bindings, delta)| bindings.is_pressed(key).then_some(delta))
                     .or_else(|| self.page_scroll_rows(key))?;
                 self.scroll(cells, delta);
-            }
-            (KeyCode::Esc, KeyModifiers::NONE) if self.can_return_to_latest() => {
-                self.jump_to_latest();
             }
             _ if jump == Some(JumpTarget::Beginning) => {
                 self.jump_to_beginning(cells);

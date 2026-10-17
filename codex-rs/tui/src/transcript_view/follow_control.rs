@@ -49,7 +49,7 @@ impl TranscriptView {
         Paragraph::new(label).style(style).render(target, buf);
     }
 
-    pub(super) fn follow_control_label(&self, width: u16) -> Option<&'static str> {
+    pub(super) fn follow_control_label(&self, width: u16) -> Option<String> {
         if self.area.is_empty()
             || self.tail_visible
             || self.highlight.is_some()
@@ -58,21 +58,23 @@ impl TranscriptView {
         {
             return None;
         }
+        let latest_key =
+            crate::key_hint::ctrl_alt(crossterm::event::KeyCode::Char('e')).display_label();
         let labels = if self.unseen_activity {
             [
-                " New activity · ↓ Back to bottom · esc ",
-                " New activity · ↓ Bottom ",
-                " New · ↓ Bottom ",
-                " ↓ Bottom ",
-                " ↓ ",
+                format!(" New activity · ↓ Back to bottom · {latest_key} "),
+                " New activity · ↓ Bottom ".to_owned(),
+                " New · ↓ Bottom ".to_owned(),
+                " ↓ Bottom ".to_owned(),
+                " ↓ ".to_owned(),
             ]
         } else {
             [
-                " ↓ Back to bottom · esc ",
-                " ↓ Back to bottom ",
-                " ↓ Bottom · esc ",
-                " ↓ Bottom ",
-                " ↓ ",
+                format!(" ↓ Back to bottom · {latest_key} "),
+                " ↓ Back to bottom ".to_owned(),
+                format!(" ↓ Bottom · {latest_key} "),
+                " ↓ Bottom ".to_owned(),
+                " ↓ ".to_owned(),
             ]
         };
         labels
