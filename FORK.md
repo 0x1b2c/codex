@@ -45,7 +45,7 @@ is omitted when its value is unknown.
 
 ### Build and developer experience
 
-**`local-build`** adds `just build` and
+**`local-build`** adds an optimized release profile, `just build`, and
 `just install-fork`. The build recipe builds the complete CLI and its code-mode
 host together, without requiring an official Codex installation or a separate
 build script. Installation is a separate step; see
@@ -144,6 +144,15 @@ needed. V8's own build script handles its precompiled library download.
 Additional arguments are forwarded to Cargo. The default uses the native target;
 for example, `just build --target aarch64-apple-darwin` selects that explicit
 target and can reuse the target layout used by the former build script.
+
+The project's release profile keeps `opt-level = 3`, disables LTO
+(`lto = "off"`), uses `codegen-units = 16`, disables debug information
+(`debug = 0`), strips symbols (`strip = "symbols"`), and disables incremental
+compilation (`incremental = false`). These settings reduce compilation and disk
+overhead for daily optimized builds, with a possible runtime performance tradeoff.
+Backtraces lose source file and line information. Changing the profile triggers
+recompilation on the next build; existing cached artifacts are not removed
+automatically.
 
 `just build` only builds; it does not install or change existing commands.
 By default, the two executables are `codex-rs/target/release/codex` and

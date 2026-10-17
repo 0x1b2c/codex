@@ -617,15 +617,14 @@ debug = "none"
 strip = "symbols"
 
 [profile.release]
-lto = "thin"
-debug = "line-tables-only"
+# Reduce compilation time and disk usage for everyday optimized builds.
+opt-level = 3
+lto = "off"
+codegen-units = 16
+debug = 0
 split-debuginfo = "off"
-# Keep release binaries symbolicateable until packaging has archived the
-# sidecar symbols and stripped the binaries.
-strip = false
-
-# Balance parallel release code generation against binary size.
-codegen-units = 4
+strip = "symbols"
+incremental = false
 
 [profile.profiling]
 inherits = "release"
