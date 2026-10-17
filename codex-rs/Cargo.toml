@@ -626,6 +626,10 @@ split-debuginfo = "off"
 strip = "symbols"
 incremental = false
 
+[profile.release.package.codex-tui]
+# Speed up local rebuilds of the frequently modified TUI.
+incremental = true
+
 [profile.profiling]
 inherits = "release"
 debug = "full"

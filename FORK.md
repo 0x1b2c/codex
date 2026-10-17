@@ -114,6 +114,12 @@ ranges to account for changed, added, and dropped commits, and verify that topic
 refs still mark the intended boundaries. Branch refs need to move along with the
 stack; `rebase --update-refs` supports this for eligible branches.
 
+Keep workspace package versions in `codex-rs/Cargo.lock` aligned with
+`workspace.package.version` in `codex-rs/Cargo.toml`. The upstream `rust-v0.162.1`
+release changed the manifest version but left local package versions in the lock
+file at `0.0.0`; this fork records the matching versions without changing external
+dependencies. Check this alignment again when updating the upstream base.
+
 When upstream supersedes a patch, retain its entry with a strikethrough and an
 explanation. Preserve the original patch under `fork/superseded/<topic>` before
 dropping it from the active stack. Creating or publishing those tags follows
@@ -148,8 +154,11 @@ target and can reuse the target layout used by the former build script.
 The project's release profile keeps `opt-level = 3`, disables LTO
 (`lto = "off"`), uses `codegen-units = 16`, disables debug information
 (`debug = 0`), strips symbols (`strip = "symbols"`), and disables incremental
-compilation (`incremental = false`). These settings reduce compilation and disk
-overhead for daily optimized builds, with a possible runtime performance tradeoff.
+compilation by default (`incremental = false`). Only `codex-tui` enables
+incremental compilation, trading extra disk usage for shorter subsequent local
+TUI rebuilds. Its first build must generate the incremental cache; final CLI
+compilation and linking are still required. These settings reduce compilation and
+disk overhead for daily optimized builds, with a possible runtime performance tradeoff.
 Backtraces lose source file and line information. Changing the profile triggers
 recompilation on the next build; existing cached artifacts are not removed
 automatically.
