@@ -4597,7 +4597,8 @@ impl ChatComposer {
                     let vim_mode = self.vim_mode_indicator_span();
                     let hint_rect = if let Some(mode) = vim_mode.as_ref() {
                         render_footer_line(hint_rect, buf, Line::from(mode.clone()));
-                        let reserved = (mode.width() as u16 + 1).min(hint_rect.width);
+                        let reserved = (mode.width() as u16 + FOOTER_INDENT_COLS as u16 + 1)
+                            .min(hint_rect.width);
                         Rect::new(
                             hint_rect.x + reserved,
                             hint_rect.y,
