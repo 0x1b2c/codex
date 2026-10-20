@@ -14,6 +14,26 @@ The README keeps upstream's content apart from the fork notice. This file
 describes the fork's differences; longer fork-specific usage guides belong in
 `docs/fork/` when needed.
 
+## Enabling the features
+
+Configuration examples below belong in `~/.codex/config.toml`. Merge them into
+the existing `[tui]` section rather than creating a second one, and preserve
+unrelated settings. Restart the CLI after editing the file. The `/vim` and
+`/statusline` commands can change their respective settings in the running UI.
+
+| Feature | Activation and default |
+| --- | --- |
+| Prompt-cache estimate | Opt in: add `"cache-expiry"` to `tui.status_line`, or select it in `/statusline`. It is not in the default status line. |
+| Vim editing and Normal-mode history motions | Enable Vim mode with `/vim`, or set `tui.vim_mode_default = true` for future launches. Vim mode is off by default. |
+| Return to the latest output | Ctrl+Option+E (Ctrl+Alt+E) works in the main fullscreen view without configuration or Vim mode. |
+| Independent terminal sessions | Opt in with `tui.no_daemon = true`. The default is `false`. |
+| Wheel travel distance | Optional upstream setting: `tui.mouse_scroll_speed = 3.0` increases travel; the default is `1.0`. |
+| Usage-warning removal and wheel-rendering changes | Automatic in this fork; no enable switch. Wheel-rendering changes apply to the main fullscreen view and do not increase scroll distance. |
+| Local build settings and lock-file protection | Used automatically by `just build`; no CLI configuration setting is needed. |
+
+The main fullscreen transcript is enabled by default. Inline or raw-output modes
+do not provide the same owned-history navigation behavior.
+
 ## Problems this fork solves
 
 Entries describe a problem and its solution at topic-branch granularity. A topic
@@ -21,6 +41,17 @@ can contain several cohesive commits; individual commands and implementation
 steps do not each need a separate entry.
 
 ### Vim editing should work naturally with Chinese text
+
+Use `/vim` to toggle Vim mode in the current session. To start future sessions
+in Vim Normal mode, set the existing upstream option:
+
+```toml
+[tui]
+vim_mode_default = true
+```
+
+This setting defaults to `false`. The fork extends Vim editing; it does not
+enable Vim mode automatically.
 
 Vim word motions in the composer now use punctuation and whitespace boundaries
 for Chinese text, without introducing dictionary-based word segmentation.
@@ -58,10 +89,24 @@ roles. Popups and dialogs retain ownership of their input.
 
 ### Prompt-cache timing should be visible
 
-The status line offers an estimated prompt-cache expiry time after prompt
-submission. This is a local estimate, not confirmation of server-side cache
-retention or a guarantee that the next request will hit the cache. The segment
-is omitted when its value is unknown.
+This is an optional status-line item, not a default indicator. Run `/statusline`
+and select `cache-expiry`, or add `"cache-expiry"` to the existing
+`[tui].status_line` array. If no array is configured, this example preserves the
+three default items and appends the estimate:
+
+```toml
+[tui]
+status_line = ["model-with-reasoning", "current-dir", "thread-name", "cache-expiry"]
+```
+
+If you already have a custom status line, keep its items and append
+`"cache-expiry"` instead of replacing the array with this example.
+
+After a prompt is submitted, the item displays a local clock time such as
+`Cache ~12:18`. The current estimate is submission time plus 30 minutes; it is
+not a countdown or confirmation of server-side cache retention, and does not
+guarantee that the next request will hit the cache. The item is omitted until
+the running session has a submission timestamp to estimate from.
 
 *Topic: `cache-expiry`. Range: `local-build..cache-expiry`.*
 
