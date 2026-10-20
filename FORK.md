@@ -176,7 +176,7 @@ into the integration branch.
 The current stack is:
 
 ```text
-rust-v0.162.1
+rust-v0.163.0
   -> lock-alignment
   -> fork-base
   -> local-build
@@ -193,8 +193,8 @@ rules, so later topics can update their documentation in the same commit as the
 behavior they introduce. Local session notes and machine-specific settings do
 not belong in that layer.
 
-The stack is based on upstream tag `rust-v0.162.1`
-(`092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`). The `lock-alignment` layer is
+The stack is based on upstream tag `rust-v0.163.0`
+(`83086188ae0614bd882818ff1aa23f3194962012`). The `lock-alignment` layer is
 the first patch above upstream: it aligns workspace package versions in the lock
 file without changing external dependencies. The build recipe's `--locked`
 guard belongs to `local-build`.
@@ -205,8 +205,11 @@ All topic refs above mark actual boundaries on the same linear history.
 boundaries until the next deliberate stack reorganization.
 `backup/patch-stack-before-reorder-20261020` preserves the integration tip before
 the first stack reorganization; keep that backup fixed during future rebases.
-The reorganization did not change the upstream base or any tracked content
-outside this document.
+That initial reorganization retained the `rust-v0.162.1` base and did not change
+tracked content outside this document. The subsequent upstream sync moved the
+stack to `rust-v0.163.0`, retaining upstream changes and all local feature patches.
+`backup/before-upstream-0.163.0-20261020` preserves the integration tip before
+that sync and must also remain fixed.
 
 ### Adding and maintaining patches
 
@@ -238,10 +241,11 @@ but keep backup refs fixed. When backup refs point into the rewritten range,
 do not use automatic ref updates; move only the intended topic refs explicitly.
 
 Keep workspace package versions in `codex-rs/Cargo.lock` aligned with
-`workspace.package.version` in `codex-rs/Cargo.toml`. The upstream `rust-v0.162.1`
-release changed the manifest version but left local package versions in the lock
-file at `0.0.0`; this fork records the matching versions without changing external
-dependencies. Check this alignment again when updating the upstream base.
+`workspace.package.version` in `codex-rs/Cargo.toml`. The upstream `rust-v0.162.1` and
+`rust-v0.163.0` releases changed the manifest version but left local package
+versions in the lock file at `0.0.0`; this fork records the matching versions
+without changing external dependencies. Check this alignment again when updating
+the upstream base.
 
 When upstream supersedes a patch, retain its entry with a strikethrough and an
 explanation. Preserve the original patch under `fork/superseded/<topic>` before
