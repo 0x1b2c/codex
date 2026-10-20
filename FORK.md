@@ -200,9 +200,8 @@ _Topic: `tui-no-daemon`. Range: `vim-editing..tui-no-daemon`._
 
 **`local-build`** adds an optimized release profile, `just build`, and
 `just install-fork`. The build recipe builds the complete CLI and its code-mode
-host together, without requiring an official Codex installation or a separate
-build script. The installer builds before installing; see
-[Building and running](#building-and-running).
+host together, without requiring an official Codex installation. The installer
+builds before installing; see [Building and running](#building-and-running).
 
 _Topic: `local-build`. Range: `fork-base..local-build`._
 
@@ -327,11 +326,18 @@ Local builds use Cargo's `--locked` flag: they use the tracked lock file without
 rewriting it. If a manifest change requires a lock-file update, update and review
 the lock file explicitly before building again.
 
-The recipe runs Cargo directly with `--release`, building only the `codex` and
+The recipe prepares V8 and runs Cargo with `--release`, building only the `codex` and
 `codex-code-mode-host` binaries and their dependencies, not every workspace tool.
 The CLI includes the TUI and the usual `resume`, `exec`, and other subcommands.
 Both binaries come from this checkout; no installed official CLI or host is
-needed. V8's own build script handles its precompiled library download.
+needed. A thin Python entry point reuses the upstream packaging helper to download
+Codex's sandbox-enabled V8 archive and matching Rust bindings for the selected
+target. It authenticates the release checksum manifest against this checkout's
+pinned hash and verifies both artifacts, including cached copies on later builds.
+The first build needs network access unless valid artifacts are cached. Existing
+paired `RUSTY_V8_ARCHIVE` / `RUSTY_V8_SRC_BINDING_PATH` overrides and
+`V8_FROM_SOURCE` retain the upstream helper's behavior. Build one target at a time;
+multiple targets cannot share one V8 artifact pair.
 
 Additional arguments to `just build` are forwarded to Cargo. Both recipes default
 to an explicit host target (`host-tuple`), or `CARGO_BUILD_TARGET` when set. This

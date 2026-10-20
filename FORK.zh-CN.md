@@ -157,7 +157,7 @@ _Topic：`tui-no-daemon`。范围：`vim-editing..tui-no-daemon`。_
 
 **`local-build`** 提供优化后的 release profile、`just build` 和 `just install-fork`。
 Build recipe 同时 build 完整 CLI 与其 code-mode host，不要求安装官方 Codex，
-也不需要单独的 build 脚本。安装前会先 build，见 [Build 与运行](#build-与运行)。
+安装前会先 build，见 [Build 与运行](#build-与运行)。
 
 _Topic：`local-build`。范围：`fork-base..local-build`。_
 
@@ -257,10 +257,15 @@ just install-fork
 本地 build 使用 Cargo 的 `--locked` 参数，读取 tracked lock 文件而不改写。
 如果 manifest 变化要求更新 lock 文件，应先显式更新并检查差异，再进行 build。
 
-Recipe 直接以 `--release` 调用 Cargo，只 build `codex` 和 `codex-code-mode-host`
+Recipe 准备 V8 后以 `--release` 调用 Cargo，只 build `codex` 和 `codex-code-mode-host`
 两个 binary 及其依赖，不 build workspace 中的全部工具。CLI 包含 TUI 和通常的
 `resume`、`exec` 等子命令。两个 binary 均来自当前 checkout，不需要已经安装的官方
-CLI 或 Host。V8 自己的 build script 负责预编译库下载。
+CLI 或 Host。薄 Python 入口复用上游打包 helper，为所选 target 下载 Codex 发布的
+启用 sandbox 的 V8 预编译库和配套 Rust bindings。Helper 使用本 checkout 固定的
+hash 验证 release checksum manifest，再验证两个产物；后续 build 也会验证缓存。
+首次 build 需要网络，已有有效缓存时除外。已有成对的 `RUSTY_V8_ARCHIVE` /
+`RUSTY_V8_SRC_BINDING_PATH` 覆盖和 `V8_FROM_SOURCE` 沿用上游 helper 的行为。
+每次只支持 build 一个 target，多个 target 无法共用同一对 V8 产物。
 
 `just build` 的额外参数直接转发给 Cargo。两个 recipe 默认显式选择本机 target
 （`host-tuple`），设置了 `CARGO_BUILD_TARGET` 时则使用该值，沿用本 fork 早期

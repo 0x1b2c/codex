@@ -21,7 +21,7 @@ codex *args:
 # Build the release CLI and its code-mode host with target-specific caches.
 [env("CARGO_BUILD_TARGET", build_target)]
 build *args:
-    cargo build --release --locked --timings -p codex-cli -p codex-code-mode-host --bin codex --bin codex-code-mode-host {args}
+    {{ python }} "{{ justfile_directory() }}/scripts/build_fork.py" {args}
 
 # Build and install both binaries for the same target.
 [unix]
