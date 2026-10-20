@@ -108,7 +108,7 @@ fn paging_top_row(app: &mut App, tui: &mut Tui) -> Result<(isize, isize)> {
         .strip_prefix("row ")
         .expect("numbered history row")
         .parse()?;
-    Ok((row, isize::from(area.height)))
+    Ok((row, isize::try_from(area.height)?))
 }
 
 fn paging_draft_cursor(app: &App) -> Option<(u16, u16)> {
@@ -497,7 +497,7 @@ async fn vim_paging_preserves_insert_and_non_vim_editor_shortcuts() -> Result<()
 async fn vim_paging_respects_custom_bindings_and_release_events() -> Result<()> {
     let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
     let config = toml::from_str(
-        "[global]\ntoggle_raw_output = 'ctrl-u'\n[pager]\npage_up = 'ctrl-y'\npage_down = 'z'\n",
+        "[global]\ntoggle_raw_output = 'ctrl-u'\n[editor]\nkill_line_start = []\n[pager]\npage_up = 'ctrl-y'\npage_down = 'z'\n",
     )?;
     app.keymap = RuntimeKeymap::from_config(&config).expect("valid paging bindings");
     app.chat_widget
