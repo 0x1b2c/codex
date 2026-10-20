@@ -373,7 +373,7 @@ async fn vim_history_navigation_keeps_hjkl_in_the_draft() -> Result<()> {
 async fn vim_history_extents_reuse_configured_chords_and_respect_other_bindings() -> Result<()> {
     let (mut app, mut tui, mut server, _events) = vim_paging_app().await?;
     let config = toml::from_str(
-        "[vim_normal]\njump_top = 'z z'\njump_bottom = 'z b'\n[global]\ntoggle_raw_output = 'G'\n",
+        "[vim_normal]\njump_top = 'z z'\njump_bottom = 'z b'\n[global]\ntoggle_raw_output = 'shift-g'\n",
     )?;
     app.keymap = RuntimeKeymap::from_config(&config).expect("valid history jump bindings");
     app.chat_widget
@@ -412,6 +412,7 @@ async fn vim_history_gg_cancellation_timeout_and_mode_changes_do_not_leak_prefix
             "timeout" => {
                 tokio::time::pause();
                 tokio::time::advance(crate::keymap::KEY_CHORD_TIMEOUT).await;
+                tokio::time::resume();
                 app.handle_tui_event(&mut tui, &mut server, TuiEvent::Draw)
                     .await?;
             }
