@@ -10,7 +10,7 @@
 - **返回最新输出：** Ctrl+Option+E（Ctrl+Alt+E）不受草稿编辑模式限制，不再使用 Esc 作为历史导航快捷键。
 - **减少打断：** 移除主动用量阈值警告，保留 `/status` 和实际额度错误。
 - **可选提示与隔离：** 本地 prompt cache 时间估计，以及让终端会话不连接共享 daemon 的 `tui.no_daemon`。
-- **Build 与安装：** `just build` 同时 build 完整 CLI 与 code-mode host；`just install-fork` 按原名安装两者。
+- **Build 与安装：** `just build` 同时 build 完整 CLI 与 code-mode host；`just install-fork` 先 build，再按原名安装两者。
 
 本 fork 还修改了 wheel 事件的绘制方式，但尚未证实该补丁的独立性能收益。
 增加每次滚动距离使用的是上游已有配置，不是 fork 新增功能。
@@ -157,7 +157,7 @@ _Topic：`tui-no-daemon`。范围：`vim-editing..tui-no-daemon`。_
 
 **`local-build`** 提供优化后的 release profile、`just build` 和 `just install-fork`。
 Build recipe 同时 build 完整 CLI 与其 code-mode host，不要求安装官方 Codex，
-也不需要单独的 build 脚本。安装是独立步骤，见 [Build 与运行](#build-与运行)。
+也不需要单独的 build 脚本。安装前会先 build，见 [Build 与运行](#build-与运行)。
 
 _Topic：`local-build`。范围：`fork-base..local-build`。_
 
@@ -249,7 +249,6 @@ mouse_scroll_speed = 3.0
 在项目根目录运行：
 
 ```sh
-just build
 just install-fork
 ```
 
@@ -263,9 +262,11 @@ Recipe 直接以 `--release` 调用 Cargo，只 build `codex` 和 `codex-code-mo
 `resume`、`exec` 等子命令。两个 binary 均来自当前 checkout，不需要已经安装的官方
 CLI 或 Host。V8 自己的 build script 负责预编译库下载。
 
-额外参数直接转发给 Cargo。默认使用 native target；例如
-`just build --target aarch64-apple-darwin` 显式选择该 target，并把 binary 放到
-对应 target 的输出目录。
+`just build` 的额外参数直接转发给 Cargo。两个 recipe 默认显式选择本机 target
+（`host-tuple`），设置了 `CARGO_BUILD_TARGET` 时则使用该值，沿用本 fork 早期
+build 的 target-specific 缓存布局。不显式选择 target 时，Cargo 使用另一套缓存布局；
+旧缓存并未丢失，但切换布局可能触发大量重新编译。`just build` 的显式 `--target`
+参数会覆盖此默认值。
 
 项目的 release profile 保持 `opt-level = 3`，关闭 LTO（`lto = "off"`），使用
 `codegen-units = 16`，关闭 debug 信息（`debug = 0`），移除符号（`strip = "symbols"`），
@@ -276,25 +277,25 @@ incremental compilation，以额外磁盘占用换取之后本地 TUI rebuild �
 行号。修改 profile 会在下次 build 触发重新编译，不会自动删除已有缓存产物。
 
 `just build` 只 build，不安装或改变已有命令。默认两个 executable 位于
-`codex-rs/target/release/codex` 和 `codex-rs/target/release/codex-code-mode-host`。
-`CARGO_TARGET_DIR`、Cargo 配置或 `--target` 可以改变位置；显式 target 会在 `release/`
-前增加 target triple。两个 executable 应放在同一目录，让 CLI 能找到伴随程序。
+`codex-rs/target/<host-triple>/release/` 下。`CARGO_TARGET_DIR` 或 Cargo 配置
+可以改变 target 目录。两个 executable 应放在同一目录，让 CLI 能找到伴随程序。
 
-macOS 和 Linux 上，`just install-fork` 将已有 binary 安装到 `~/.local/bin`，不会
-build。先成功复制两个源文件，才替换命令。已有文件 symlink 被替换为普通 executable，
-不改写链接目标；目标为目录时拒绝安装。上游 `just install` 仍仅准备开发依赖，保持原样。
+macOS 和 Linux 上，`just install-fork` 先 build 两个 binary，再安装到
+`~/.local/bin`。Build 失败时不改动已安装的命令。安装步骤向 Cargo 查询 target
+目录，因此 `CARGO_TARGET_DIR` 和 Cargo 的 `target-dir` 配置对两个步骤均生效，
+无需手动指定产物路径。先成功复制两个源文件，才替换命令。已有文件 symlink 被替换为
+普通 executable，不改写链接目标；目标为目录时拒绝安装。上游 `just install` 仍仅
+准备开发依赖，保持原样。
 
-第一个可选参数选择 build 输出目录；除绝对路径外，相对 `codex-rs/` 解释。例如显式
-target 的用法：
+第一个可选参数选择 build 和安装共同使用的 target triple，第二个选择安装 prefix：
 
 ```sh
-just build --target aarch64-apple-darwin
-just install-fork target/aarch64-apple-darwin/release
+just install-fork aarch64-apple-darwin
+just install-fork aarch64-apple-darwin /tmp/codex-prefix
 ```
 
-如果 `CARGO_TARGET_DIR` 或 Cargo 配置改变输出位置，应显式传入该目录。第二个可选
-参数选择安装 prefix，例如 `just install-fork /tmp/codex-target/release /tmp/codex-prefix`
-把两个命令安装到 `/tmp/codex-prefix/bin`。
+第二条命令安装到 `/tmp/codex-prefix/bin`。如需只改变 prefix 而保留默认本机 target，
+第一个参数使用 `host-tuple`。第一个参数是 target，不再是 build 输出目录。
 
 Recipe 不修改 `PATH`。把 `~/.local/bin` 放在其他 Codex 安装路径之前，然后运行
 `codex`。命令没有 fork 专用后缀。Windows build 生成对应 `.exe` 文件，应把两个文件

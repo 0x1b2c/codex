@@ -7,6 +7,7 @@ set windows-shell := ["python", "-c", 'import os, runpy; runpy.run_path(os.envir
 
 rust_min_stack := "8388608" # 8 MiB
 python := if os_family() == "windows" { "python" } else { "python3" }
+build_target := env("CARGO_BUILD_TARGET", "host-tuple")
 
 # Display help
 help:
@@ -17,15 +18,23 @@ alias c := codex
 codex *args:
     cargo run --bin codex -- {args}
 
-# Build the release CLI and its code-mode host.
+# Build the release CLI and its code-mode host with target-specific caches.
+[env("CARGO_BUILD_TARGET", build_target)]
 build *args:
     cargo build --release --locked --timings -p codex-cli -p codex-code-mode-host --bin codex --bin codex-code-mode-host {args}
 
-# Install both existing binaries without building; paths are relative to codex-rs.
+# Build and install both binaries for the same target.
 [unix]
-install-fork build-dir="target/release" prefix=(env("HOME") / ".local"):
+install-fork target=build_target prefix=(env("HOME") / ".local"): (build "--target" target)
     #!/usr/bin/env sh
     set -eu
+    metadata=$(cargo metadata --locked --no-deps --format-version 1)
+    target_dir=$(printf '%s' "$metadata" | python3 -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')
+    target="$1"
+    if [ "$target" = host-tuple ]; then
+        target=$(rustc --print host-tuple)
+    fi
+    build_dir="$target_dir/$target/release"
     bin_dir="$2/bin"
     for name in codex codex-code-mode-host; do
         if [ -d "$bin_dir/$name" ]; then
@@ -37,7 +46,7 @@ install-fork build-dir="target/release" prefix=(env("HOME") / ".local"):
     install_dir=$(mktemp -d "$bin_dir/.codex-install.XXXXXX")
     trap 'rm -f "$install_dir/codex" "$install_dir/codex-code-mode-host"; rmdir "$install_dir"' 0
     trap 'exit 1' HUP INT TERM
-    install -m 755 "$1/codex" "$1/codex-code-mode-host" "$install_dir/"
+    install -m 755 "$build_dir/codex" "$build_dir/codex-code-mode-host" "$install_dir/"
     mv -f "$install_dir/codex" "$bin_dir/codex"
     mv -f "$install_dir/codex-code-mode-host" "$bin_dir/codex-code-mode-host"
 

@@ -17,7 +17,7 @@ A personal fork of [OpenAI Codex](https://github.com/openai/codex), maintained b
 - **Optional indicators and isolation:** a local prompt-cache time estimate
   and `tui.no_daemon` for terminal sessions that do not join the shared daemon.
 - **Build and install:** `just build` builds the complete CLI and code-mode host;
-  `just install-fork` installs both under their usual names.
+  `just install-fork` builds and installs both under their usual names.
 
 The fork also changes wheel-event rendering. Its independent performance benefit
 has not yet been established; increasing wheel travel uses an existing upstream
@@ -201,7 +201,7 @@ _Topic: `tui-no-daemon`. Range: `vim-editing..tui-no-daemon`._
 **`local-build`** adds an optimized release profile, `just build`, and
 `just install-fork`. The build recipe builds the complete CLI and its code-mode
 host together, without requiring an official Codex installation or a separate
-build script. Installation is a separate step; see
+build script. The installer builds before installing; see
 [Building and running](#building-and-running).
 
 _Topic: `local-build`. Range: `fork-base..local-build`._
@@ -317,7 +317,6 @@ this setting increases travel without fixing processing stalls.
 From the repository root:
 
 ```sh
-just build
 just install-fork
 ```
 
@@ -334,9 +333,12 @@ The CLI includes the TUI and the usual `resume`, `exec`, and other subcommands.
 Both binaries come from this checkout; no installed official CLI or host is
 needed. V8's own build script handles its precompiled library download.
 
-Additional arguments are forwarded to Cargo. The default uses the native target;
-for example, `just build --target aarch64-apple-darwin` selects that explicit
-target and places the binaries under its target-specific output directory.
+Additional arguments to `just build` are forwarded to Cargo. Both recipes default
+to an explicit host target (`host-tuple`), or `CARGO_BUILD_TARGET` when set. This
+keeps the target-specific cache layout used by earlier fork builds. Omitting an
+explicit target uses a different Cargo cache layout; existing caches are not
+lost, but switching layouts can trigger extensive recompilation. An explicit
+`--target` argument to `just build` overrides this default.
 
 The project's release profile keeps `opt-level = 3`, disables LTO
 (`lto = "off"`), uses `codegen-units = 16`, disables debug information
@@ -351,31 +353,30 @@ recompilation on the next build; existing cached artifacts are not removed
 automatically.
 
 `just build` only builds; it does not install or change existing commands.
-By default, the two executables are `codex-rs/target/release/codex` and
-`codex-rs/target/release/codex-code-mode-host`. `CARGO_TARGET_DIR`, Cargo
-configuration, or `--target` can change this location; an explicit target adds
-its triple before `release/`. Keep both executables together so the CLI can find
-its companion.
+By default, the executables are under `codex-rs/target/<host-triple>/release/`.
+`CARGO_TARGET_DIR` or Cargo configuration can change the target directory.
+Keep both executables together so the CLI can find its companion.
 
-On macOS and Linux, `just install-fork` installs the existing binaries into
-`~/.local/bin`; it does not build them. Both sources are copied successfully
-before either command is replaced. Existing file symlinks are replaced with
-regular executable files, leaving their targets untouched; directory destinations
-are rejected. The upstream `just install` recipe only prepares development
-dependencies and is unchanged.
+On macOS and Linux, `just install-fork` first builds both binaries, then installs
+them into `~/.local/bin`. A failed build leaves the installed commands untouched.
+The installer asks Cargo for its target directory, so `CARGO_TARGET_DIR` and
+Cargo's `target-dir` configuration apply to both steps without manual paths.
+Both sources are copied successfully before either command is replaced. Existing
+file symlinks are replaced with regular executable files, leaving their targets
+untouched; directory destinations are rejected. The upstream `just install`
+recipe only prepares development dependencies and is unchanged.
 
-The first optional argument selects the build output directory, relative to
-`codex-rs/` unless absolute. For an explicit target:
+The first optional argument selects the target triple for both build and install;
+the second selects the installation prefix. For example:
 
 ```sh
-just build --target aarch64-apple-darwin
-just install-fork target/aarch64-apple-darwin/release
+just install-fork aarch64-apple-darwin
+just install-fork aarch64-apple-darwin /tmp/codex-prefix
 ```
 
-If `CARGO_TARGET_DIR` or Cargo configuration changes the output location, pass
-that directory explicitly. A second optional argument selects the installation
-prefix, for example `just install-fork /tmp/codex-target/release /tmp/codex-prefix`
-installs both commands into `/tmp/codex-prefix/bin`.
+The second command installs into `/tmp/codex-prefix/bin`. To change only the
+prefix while keeping the default host target, use `host-tuple` as the first
+argument. The first argument is a target, not a build output directory.
 
 The recipe does not change `PATH`. Put `~/.local/bin` before other Codex
 installations in `PATH`, then run `codex`. The command has no fork-specific
