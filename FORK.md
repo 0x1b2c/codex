@@ -120,7 +120,17 @@ focus in the main fullscreen view.
 Ctrl+Option+E on macOS (Ctrl+Alt+E elsewhere) returns to the latest output in the
 main fullscreen conversation, whether the composer is in Vim Normal, Insert,
 Visual, or non-Vim mode. It preserves the draft, cursor, and editing mode, and is
-safe to press repeatedly while a task is running. Ctrl+End and Alt+> still work.
+safe to press repeatedly while a task is running. The shortcut is configurable:
+
+```toml
+[tui.keymap.global]
+jump_to_latest = "ctrl-alt-e"
+```
+
+The action also appears in `/keymap`. It accepts the usual keymap syntax, including
+multiple bindings (such as `["ctrl-alt-e", "f12"]`), chords (such as `"ctrl-x e"`),
+and `[]` to unbind it. Return-to-latest hints show the configured shortcut.
+Ctrl+End and Alt+> remain independent alternatives, as does Vim Normal-mode `G`.
 Ordinary history browsing no longer uses Esc to return to the bottom: Esc retains
 its existing editing, cancellation, prompt-backtracking, and task-interruption
 roles. Popups and dialogs retain ownership of their input.

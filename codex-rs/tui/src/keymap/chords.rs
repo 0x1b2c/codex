@@ -58,7 +58,7 @@ impl KeymapContextSet {
         Self(context_bit(context))
     }
 
-    /// Activity navigation combines list actions with global focus and Find.
+    /// Activity navigation combines list actions with global transcript actions.
     /// Other global actions remain inactive so existing list remaps keep priority.
     pub(crate) const fn activity() -> Self {
         Self(context_bit(KeymapContext::List) | context_bit(KeymapContext::Global) | ACTIVITY_FOCUS)
@@ -147,7 +147,10 @@ impl KeymapContextSet {
         self.contains(action.context)
             && (self.0 & ACTIVITY_FOCUS == 0
                 || action.context != KeymapContext::Global
-                || matches!(action.action, "focus_activity" | "find_transcript"))
+                || matches!(
+                    action.action,
+                    "focus_activity" | "find_transcript" | "jump_to_latest"
+                ))
             && (self.0 & TRANSCRIPT_CLOSE == 0
                 || action.context != KeymapContext::Pager
                 || action.action == "close_transcript")

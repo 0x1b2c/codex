@@ -94,7 +94,8 @@ impl App {
                 && self.transcript_view.owns_interaction_key(key_event)
                 && (self.transcript_view.has_active_interaction()
                     || self.backtrack.overlay_preview_active
-                    || crate::transcript_view::JumpTarget::from_key(key_event).is_none()))
+                    || crate::transcript_view::JumpTarget::from_key(key_event, &self.keymap)
+                        .is_none()))
         {
             let close_chord = tui.is_owned_screen()
                 && self.overlay.is_none()

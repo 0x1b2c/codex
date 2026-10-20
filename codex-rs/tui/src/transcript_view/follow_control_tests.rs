@@ -381,3 +381,44 @@ fn height_changes_backfill_after_empty_click_but_preserve_deliberate_pause() {
         }
     }
 }
+
+#[test]
+fn latest_002_follow_control_uses_the_configured_shortcut() {
+    let cells = vec![cell("one\ntwo\nthree\nfour\nfive")];
+    for (binding, expected) in [
+        (serde_json::json!("f12"), Some("f12")),
+        (serde_json::json!([]), None),
+    ] {
+        let config =
+            serde_json::from_value(serde_json::json!({"global":{"jump_to_latest":binding}}))
+                .unwrap();
+        let keymap = crate::keymap::RuntimeKeymap::from_config(&config).unwrap();
+        let mut view = TranscriptView::default();
+        view.set_keymap_bindings(&keymap);
+        paint(&mut view, &cells, 80);
+        view.scroll(&cells, -1);
+        paint(&mut view, &cells, 80);
+        let label = view.follow_control_label(80).expect("return control");
+        assert!(!label.contains("⌃⌥e"));
+        if let Some(expected) = expected {
+            assert!(label.contains(expected), "{label}");
+        } else {
+            assert_eq!(label, " ↓ Back to bottom ");
+        }
+        assert!(
+            view.handle_key(
+                KeyEvent::new(
+                    KeyCode::Char('e'),
+                    KeyModifiers::CONTROL | KeyModifiers::ALT
+                ),
+                &cells
+            )
+            .is_none()
+        );
+        assert!(!view.is_following());
+        if expected.is_some() {
+            assert!(view.handle_key(KeyCode::F(12).into(), &cells).is_some());
+            assert!(view.is_following());
+        }
+    }
+}

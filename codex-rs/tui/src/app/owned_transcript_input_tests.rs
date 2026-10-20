@@ -999,3 +999,78 @@ async fn modified_arrows_and_editor_chords_resume_composer_movement() -> Result<
     tui.set_owned_screen(/*owned*/ false)?;
     Ok(())
 }
+
+#[tokio::test]
+async fn latest_001_configured_shortcuts_preserve_drafts_in_each_editing_mode() -> Result<()> {
+    let mut app = crate::app::test_support::make_test_app().await;
+    let mut server = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    tui.set_owned_screen(true)?;
+    let size = Size::new(80, 12);
+    tui.terminal.resize(size)?;
+    app.transcript_cells = vec![Arc::new(PlainHistoryCell::new(
+        (0..30).map(|row| format!("row {row}").into()).collect(),
+    ))];
+    for (configured, keys, hint) in [
+        ("f12", vec![KeyCode::F(12).into()], "f12"),
+        (
+            "ctrl-x e",
+            vec![
+                KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
+                KeyCode::Char('e').into(),
+            ],
+            "⌃x e",
+        ),
+    ] {
+        let config =
+            serde_json::from_value(serde_json::json!({"global":{"jump_to_latest":configured}}))?;
+        app.keymap = RuntimeKeymap::from_config(&config).expect("valid shortcut");
+        app.local_settings.tui.keymap = config.clone();
+        app.chat_widget.apply_keymap_update(config, &app.keymap);
+        app.chat_widget
+            .apply_external_edit("draft preserved".into());
+        // The first pass is non-Vim. Switching once then exercises Normal, Insert and Visual.
+        for mode in ["plain", "normal", "insert", "visual"] {
+            match mode {
+                "normal" => app.chat_widget.toggle_vim_mode_and_notify(),
+                "insert" => {
+                    app.chat_widget.handle_key_event(KeyCode::Char('i').into());
+                }
+                "visual" => {
+                    app.chat_widget.handle_key_event(KeyCode::Esc.into());
+                    app.chat_widget.handle_key_event(KeyCode::Char('v').into());
+                }
+                _ => {}
+            }
+            app.render_owned_transcript(&mut tui, size)?;
+            app.transcript_view.scroll(&app.transcript_cells, -10);
+            app.render_owned_transcript(&mut tui, size)?;
+            let cursor = tui.terminal.last_known_cursor_pos;
+            let before = screen(&tui);
+            assert!(before.contains(&format!("{hint} latest")), "{before}");
+            for key in &keys {
+                app.handle_tui_event(&mut tui, &mut server, TuiEvent::Key(*key))
+                    .await?;
+            }
+            app.render_owned_transcript(&mut tui, size)?;
+            assert!(app.transcript_view.is_following(), "{configured} in {mode}");
+            assert_eq!(
+                app.chat_widget.composer_text_with_pending(),
+                "draft preserved"
+            );
+            assert_eq!(tui.terminal.last_known_cursor_pos, cursor);
+            let after = screen(&tui);
+            for label in ["-- NORMAL --", "-- INSERT --", "-- VISUAL --"] {
+                assert_eq!(
+                    before.contains(label),
+                    after.contains(label),
+                    "{configured} in {mode}"
+                );
+            }
+        }
+        app.chat_widget.toggle_vim_mode_and_notify();
+    }
+    tui.set_owned_screen(false)?;
+    server.shutdown().await?;
+    Ok(())
+}

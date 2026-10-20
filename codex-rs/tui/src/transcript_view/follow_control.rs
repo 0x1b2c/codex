@@ -58,11 +58,17 @@ impl TranscriptView {
         {
             return None;
         }
-        let latest_key =
-            crate::key_hint::ctrl_alt(crossterm::event::KeyCode::Char('e')).display_label();
+        let latest_key = self
+            .disclosure
+            .keymap
+            .primary_hint(crate::keymap::KeymapContext::Global, "jump_to_latest")
+            .map(crate::key_hint::ShortcutHint::display_label);
+        let key_suffix = latest_key
+            .map(|key| format!(" · {key}"))
+            .unwrap_or_default();
         let labels = if self.unseen_activity {
             [
-                format!(" New activity · ↓ Back to bottom · {latest_key} "),
+                format!(" New activity · ↓ Back to bottom{key_suffix} "),
                 " New activity · ↓ Bottom ".to_owned(),
                 " New · ↓ Bottom ".to_owned(),
                 " ↓ Bottom ".to_owned(),
@@ -70,9 +76,9 @@ impl TranscriptView {
             ]
         } else {
             [
-                format!(" ↓ Back to bottom · {latest_key} "),
+                format!(" ↓ Back to bottom{key_suffix} "),
                 " ↓ Back to bottom ".to_owned(),
-                format!(" ↓ Bottom · {latest_key} "),
+                format!(" ↓ Bottom{key_suffix} "),
                 " ↓ Bottom ".to_owned(),
                 " ↓ ".to_owned(),
             ]

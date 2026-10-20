@@ -101,6 +101,8 @@ pub(crate) struct AppKeymap {
     pub(crate) open_transcript: Vec<KeyBinding>,
     /// Find text in the full transcript.
     pub(crate) find_transcript: Vec<KeyBinding>,
+    /// Return to the latest output without changing the composer draft.
+    pub(crate) jump_to_latest: Vec<KeyBinding>,
     /// Focus activity groups in the owned transcript to inspect their details.
     pub(crate) focus_activity: Vec<KeyBinding>,
     /// Open retained warnings without replacing the composer.
@@ -716,6 +718,19 @@ impl RuntimeKeymap {
             })
             .collect();
 
+        let jump_to_latest_defaults: Vec<_> = defaults
+            .app
+            .jump_to_latest
+            .iter()
+            .copied()
+            .filter(|binding| {
+                !configured_context_binding_is_used(keymap, *binding)
+                    && !chords.bindings.iter().any(|chord| {
+                        chord.chord.prefix.normalized_parts() == binding.normalized_parts()
+                    })
+            })
+            .collect();
+
         let app = AppKeymap {
             open_agents: resolve_bindings(
                 keymap.global.open_agents.as_ref(),
@@ -731,6 +746,11 @@ impl RuntimeKeymap {
                 keymap.global.find_transcript.as_ref(),
                 &defaults.app.find_transcript,
                 "tui.keymap.global.find_transcript",
+            )?,
+            jump_to_latest: resolve_bindings(
+                keymap.global.jump_to_latest.as_ref(),
+                &jump_to_latest_defaults,
+                "tui.keymap.global.jump_to_latest",
             )?,
             focus_activity: resolve_bindings(
                 keymap.global.focus_activity.as_ref(),
@@ -1756,6 +1776,10 @@ impl RuntimeKeymap {
                 app.find_transcript.as_slice(),
             ),
             (
+                keymap.global.jump_to_latest.as_ref(),
+                app.jump_to_latest.as_slice(),
+            ),
+            (
                 keymap.global.focus_activity.as_ref(),
                 app.focus_activity.as_slice(),
             ),
@@ -1986,6 +2010,7 @@ impl RuntimeKeymap {
                 open_agents: default_bindings![],
                 open_transcript: default_bindings![ctrl(KeyCode::Char('t'))],
                 find_transcript: default_bindings![plain(KeyCode::F(3))],
+                jump_to_latest: default_bindings![raw(key_hint::ctrl_alt(KeyCode::Char('e')))],
                 focus_activity: default_bindings![plain(KeyCode::F(4))],
                 open_warnings: default_bindings![plain(KeyCode::F(2))],
                 open_external_editor: default_bindings![ctrl(KeyCode::Char('g'))],
@@ -2425,6 +2450,7 @@ impl RuntimeKeymap {
             ("open_agents", self.app.open_agents.as_slice()),
             ("open_transcript", self.app.open_transcript.as_slice()),
             ("find_transcript", self.app.find_transcript.as_slice()),
+            ("jump_to_latest", self.app.jump_to_latest.as_slice()),
             ("focus_activity", self.app.focus_activity.as_slice()),
             ("open_warnings", self.app.open_warnings.as_slice()),
             (
@@ -2531,6 +2557,7 @@ impl RuntimeKeymap {
                 ("open_agents", self.app.open_agents.as_slice()),
                 ("open_transcript", self.app.open_transcript.as_slice()),
                 ("find_transcript", self.app.find_transcript.as_slice()),
+                ("jump_to_latest", self.app.jump_to_latest.as_slice()),
                 ("focus_activity", self.app.focus_activity.as_slice()),
                 ("open_warnings", self.app.open_warnings.as_slice()),
                 (
@@ -2590,6 +2617,7 @@ impl RuntimeKeymap {
                 ("open_agents", self.app.open_agents.as_slice()),
                 ("open_transcript", self.app.open_transcript.as_slice()),
                 ("find_transcript", self.app.find_transcript.as_slice()),
+                ("jump_to_latest", self.app.jump_to_latest.as_slice()),
                 ("focus_activity", self.app.focus_activity.as_slice()),
                 ("open_warnings", self.app.open_warnings.as_slice()),
                 (
@@ -2723,6 +2751,7 @@ impl RuntimeKeymap {
                     "global.find_transcript",
                     self.app.find_transcript.as_slice(),
                 ),
+                ("global.jump_to_latest", self.app.jump_to_latest.as_slice()),
             ]),
         )?;
 

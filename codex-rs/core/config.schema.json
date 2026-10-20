@@ -4786,6 +4786,7 @@
               "copy": null,
               "find_transcript": null,
               "focus_activity": null,
+              "jump_to_latest": null,
               "leader": null,
               "open_agents": null,
               "open_external_editor": null,
@@ -5621,6 +5622,14 @@
           ],
           "description": "Focus activity groups in the owned transcript to inspect their details."
         },
+        "jump_to_latest": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Return to the latest output without changing the composer draft."
+        },
         "leader": {
           "allOf": [
             {
@@ -5824,6 +5833,7 @@
             "copy": null,
             "find_transcript": null,
             "focus_activity": null,
+            "jump_to_latest": null,
             "leader": null,
             "open_agents": null,
             "open_external_editor": null,

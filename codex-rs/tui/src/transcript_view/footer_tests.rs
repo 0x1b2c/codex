@@ -544,7 +544,11 @@ impl TranscriptView {
             motion,
             &format!(
                 "{} latest",
-                crate::key_hint::ctrl_alt(KeyCode::Char('e')).display_label()
+                self.disclosure
+                    .keymap
+                    .primary_hint(crate::keymap::KeymapContext::Global, "jump_to_latest")
+                    .map(crate::key_hint::ShortcutHint::display_label)
+                    .unwrap_or_else(|| JumpTarget::Latest.hint_label())
             ),
         )
     }

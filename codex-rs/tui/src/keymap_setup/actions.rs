@@ -87,6 +87,7 @@ pub(super) const KEYMAP_ACTIONS: &[KeymapActionDescriptor] = &[
     action("global", "Global", "open_agents", "Open the shared agent-session overview."),
     action("global", "Global", "open_transcript", "Open the transcript overlay."),
     action("global", "Global", "find_transcript", "Find text in the full transcript."),
+    action("global", "Global", "jump_to_latest", "Return to the latest output."),
     // Keep the new warnings action out of shared-config writes until older strict readers
     // accept it. Its built-in shortcuts remain available.
     action("global", "Global", "focus_activity", "Focus transcript activity groups to expand or collapse their details."),
@@ -303,6 +304,7 @@ pub(super) fn binding_slot<'a>(
         ("global", "open_agents") => Some(&mut keymap.global.open_agents),
         ("global", "open_transcript") => Some(&mut keymap.global.open_transcript),
         ("global", "find_transcript") => Some(&mut keymap.global.find_transcript),
+        ("global", "jump_to_latest") => Some(&mut keymap.global.jump_to_latest),
         ("global", "focus_activity") => Some(&mut keymap.global.focus_activity),
         ("global", "open_external_editor") => Some(&mut keymap.global.open_external_editor),
         ("global", "copy") => Some(&mut keymap.global.copy),

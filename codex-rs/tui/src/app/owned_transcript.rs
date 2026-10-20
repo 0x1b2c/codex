@@ -91,7 +91,11 @@ impl App {
             self.local_settings.tui.animations && self.local_settings.tui.effects.shimmer,
         );
         let composer = self.first_screen_composer();
-        let latest_key = crate::key_hint::ctrl_alt(KeyCode::Char('e')).display_label();
+        let latest_key = self
+            .keymap
+            .primary_hint(KeymapContext::Global, "jump_to_latest")
+            .map(crate::key_hint::ShortcutHint::display_label)
+            .unwrap_or_else(|| crate::transcript_view::JumpTarget::Latest.hint_label());
         let latest_navigation = if self.enter_returns_to_latest() {
             format!("enter/{latest_key} latest")
         } else {
@@ -595,14 +599,18 @@ impl App {
                     && !(vim_paging
                         && action.context == KeymapContext::VimNormal
                         && matches!(action.action, "jump_top" | "jump_bottom"))
-                    && !matches!(action.action, "find_transcript" | "focus_activity")
+                    && !matches!(
+                        action.action,
+                        "find_transcript" | "focus_activity" | "jump_to_latest"
+                    )
                     && self.active_keymap_contexts().contains_action(action)
                     && !(empty_enter_returns_to_latest
                         && action.context == KeymapContext::Composer
                         && action.action == "submit")
                     && ((key.modifiers.is_empty()
                         && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown))
-                        || crate::transcript_view::JumpTarget::from_key(*key).is_some()
+                        || crate::transcript_view::JumpTarget::from_key(*key, &self.keymap)
+                            .is_some()
                         || configured_binding_for_action(&self.local_settings.tui.keymap, action)
                             .is_some_and(std::option::Option::is_some))
                     && bindings_for_action(

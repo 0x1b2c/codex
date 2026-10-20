@@ -956,7 +956,8 @@ impl App {
             let escape = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
             if self.should_recover_vim_insert_escape(key_event)
                 && !(tui.is_owned_screen()
-                    && crate::transcript_view::JumpTarget::from_key(key_event).is_some())
+                    && crate::transcript_view::JumpTarget::from_key(key_event, &self.keymap)
+                        .is_some())
             {
                 // Restore both strokes before chords or global shortcuts can consume them.
                 if let Some(escape) = self.route_key_chord_event(tui, escape) {

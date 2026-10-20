@@ -55,11 +55,11 @@ impl JumpTarget {
         )
     }
 
-    pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
+    pub(crate) fn from_key(key: KeyEvent, keymap: &crate::keymap::RuntimeKeymap) -> Option<Self> {
         if key.kind == KeyEventKind::Release {
             return None;
         }
-        if crate::key_hint::ctrl_alt(KeyCode::Char('e')).is_press(key) {
+        if keymap.app.jump_to_latest.is_pressed(key) {
             return Some(Self::Latest);
         }
         match (key.code, key.modifiers) {
@@ -157,7 +157,7 @@ impl TranscriptView {
         }
         let (code, modifiers) = crate::key_hint::normalize_key_parts(key.code, key.modifiers);
         if (code == KeyCode::Char(' ') && modifiers == KeyModifiers::CONTROL)
-            || JumpTarget::from_key(key).is_some()
+            || JumpTarget::from_key(key, &self.disclosure.keymap).is_some()
         {
             return true;
         }
@@ -427,8 +427,10 @@ impl TranscriptView {
         key: KeyEvent,
         cells: &[Arc<dyn HistoryCell>],
     ) -> Option<ViewAction> {
-        let jump = JumpTarget::from_key(key);
+        let jump = JumpTarget::from_key(key, &self.disclosure.keymap);
         match (key.code, key.modifiers) {
+            _ if jump == Some(JumpTarget::Beginning) => self.jump_to_beginning(cells),
+            _ if jump == Some(JumpTarget::Latest) => self.jump_to_latest(),
             (KeyCode::PageUp | KeyCode::PageDown, KeyModifiers::NONE) => {
                 // Share page-key configuration without taking the pager's typing shortcuts.
                 // Full pages retain the main view's existing one-row overlap.
@@ -439,10 +441,6 @@ impl TranscriptView {
                     .or_else(|| self.page_scroll_rows(key))?;
                 self.scroll(cells, delta);
             }
-            _ if jump == Some(JumpTarget::Beginning) => {
-                self.jump_to_beginning(cells);
-            }
-            _ if jump == Some(JumpTarget::Latest) => self.jump_to_latest(),
             _ => return None,
         }
         Some(ViewAction::Changed)

@@ -90,7 +90,17 @@ register 或系统剪贴板 register。还补充了行首导航、`X` / `S`，�
 
 macOS 上的 Ctrl+Option+E（其他平台为 Ctrl+Alt+E）在主 fullscreen 对话中返回最新输出，
 无论草稿框处于 Vim Normal、Insert、Visual 还是非 Vim 模式。它保留草稿、光标和
-编辑模式，任务运行时也可安全地重复按。Ctrl+End 和 Alt+> 仍然可用。
+编辑模式，任务运行时也可安全地重复按。此快捷键可以配置：
+
+```toml
+[tui.keymap.global]
+jump_to_latest = "ctrl-alt-e"
+```
+
+此动作也会出现在 `/keymap` 中，支持常规 keymap 语法，包括多个绑定
+（如 `["ctrl-alt-e", "f12"]`）、组合键序列（如 `"ctrl-x e"`），以及使用 `[]` 解绑。
+返回最新输出的提示会显示已配置的快捷键。Ctrl+End、Alt+> 和 Vim Normal 模式下的 `G`
+仍是独立的替代操作。
 普通历史浏览不再使用 Esc 返回底部：Esc 保留既有编辑、取消、prompt 回溯和任务中断职责。
 弹窗与对话框仍优先处理自己的输入。
 

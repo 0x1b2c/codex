@@ -184,7 +184,11 @@ impl TranscriptView {
                 self.next_search_match(cells, Direction::Older);
             }
             (KeyCode::PageUp | KeyCode::PageDown, KeyModifiers::NONE) => return false,
-            _ if JumpTarget::from_key(key).is_some() || self.search.is_reading() => return false,
+            _ if JumpTarget::from_key(key, &self.disclosure.keymap).is_some()
+                || self.search.is_reading() =>
+            {
+                return false;
+            }
             _ => {
                 let before = self.search.editor.text().to_string();
                 let cursor = self.search.editor.cursor();
