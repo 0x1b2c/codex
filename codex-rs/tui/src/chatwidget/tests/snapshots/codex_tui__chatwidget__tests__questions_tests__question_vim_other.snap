@@ -10,7 +10,7 @@ NORMAL
     1. Named
   › 2. alpha beta
        alpha gamma
-                                                                   Vim: Normal
+                                                                  -- NORMAL --
   enter submit   ⌃] skip   ⇧→ main prompt
 
 SEARCH
@@ -22,5 +22,5 @@ SEARCH
   › 2. alpha beta
        alpha gamma
        /gamma
-                                                                   Vim: Normal
+                                                                  -- NORMAL --
   enter submit   ⌃] skip   ⇧→ main prompt

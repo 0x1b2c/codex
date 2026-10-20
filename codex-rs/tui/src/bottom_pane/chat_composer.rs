@@ -349,6 +349,7 @@ use super::footer::render_footer_from_props;
 use super::footer::render_footer_hint_items;
 use super::footer::render_footer_line;
 use super::footer::reset_mode_after_activity;
+use super::footer::shortcuts_hint_line;
 use super::footer::side_conversation_context_line;
 use super::footer::single_line_footer_layout;
 use super::footer::status_line_right_indicator_line;
@@ -1424,42 +1425,23 @@ impl ChatComposer {
     }
 
     fn mode_indicator_line(&self, show_cycle_hint: bool) -> Option<Line<'static>> {
-        let mut spans: Vec<Span<'static>> = Vec::new();
-        if let Some(vim_mode) = self.vim_mode_indicator_span() {
-            spans.push(vim_mode);
-        }
-        if let Some(indicators) = status_line_right_indicator_line(
+        status_line_right_indicator_line(
             self.footer.collaboration_mode_indicator,
             self.footer.goal_status_indicator.as_ref(),
             self.footer.ide_context_active,
             show_cycle_hint,
-        ) {
-            if !spans.is_empty() {
-                spans.push(" | ".dim());
-            }
-            spans.extend(indicators.spans);
-        }
-        if spans.is_empty() {
-            None
-        } else {
-            Some(Line::from(spans))
-        }
+        )
     }
 
     fn right_footer_line_with_context(&self) -> Line<'static> {
-        let mut line = if self.footer.context_window_pending {
+        if self.footer.context_window_pending {
             Line::default()
         } else {
             context_window_line(
                 self.footer.context_window_percent,
                 self.footer.context_window_used_tokens,
             )
-        };
-        if let Some(vim_mode) = self.vim_mode_indicator_span() {
-            line.spans.push(" | ".dim());
-            line.spans.push(vim_mode);
         }
-        line
     }
 
     pub(crate) fn current_text_with_pending(&self) -> String {
@@ -4610,6 +4592,27 @@ impl ChatComposer {
                 } else if let Some(line) = self.history_search_footer_line() {
                     render_footer_line(hint_rect, buf, line);
                 } else {
+                    // Reserve the mode first so other footer content cannot hide it on narrow
+                    // terminals. Keep the existing layout rules in the remaining columns.
+                    let vim_mode = self.vim_mode_indicator_span();
+                    let hint_rect = if let Some(mode) = vim_mode.as_ref() {
+                        render_footer_line(hint_rect, buf, Line::from(mode.clone()));
+                        let reserved = (mode.width() as u16 + 1).min(hint_rect.width);
+                        Rect::new(
+                            hint_rect.x + reserved,
+                            hint_rect.y,
+                            hint_rect.width - reserved,
+                            hint_rect.height,
+                        )
+                    } else {
+                        hint_rect
+                    };
+                    let vim_shortcuts = (vim_mode.is_some()
+                        && show_shortcuts_hint
+                        && !self.footer.flash_visible()
+                        && self.footer.hint_override.is_none())
+                    .then(|| shortcuts_hint_line(footer_props.key_hints));
+                    let show_shortcuts_hint = show_shortcuts_hint && vim_mode.is_none();
                     let available_width =
                         hint_rect.width.saturating_sub(FOOTER_INDENT_COLS as u16) as usize;
                     let status_line_active = uses_passive_footer_status_layout(&footer_props);
@@ -4673,7 +4676,7 @@ impl ChatComposer {
                             show_queue_hint,
                         )
                     };
-                    let right_line =
+                    let mut right_line =
                         if let Some(label) = self.footer.side_conversation_context_label.as_ref() {
                             Some(side_conversation_context_line(label))
                         } else if let Some(line) = self.shell_mode_footer_line() {
@@ -4692,6 +4695,22 @@ impl ChatComposer {
                         } else {
                             Some(self.right_footer_line_with_context())
                         };
+                    if let Some(shortcuts) = vim_shortcuts.filter(|line| line.width() > 0) {
+                        let max_width = hint_rect
+                            .width
+                            .saturating_sub(2 * FOOTER_INDENT_COLS as u16);
+                        if shortcuts.width() <= max_width as usize {
+                            let line = right_line.get_or_insert_default();
+                            if !line.spans.is_empty()
+                                && line.width() + 3 + shortcuts.width() <= max_width as usize
+                            {
+                                line.spans.push(" · ".dim());
+                                line.spans.extend(shortcuts.spans);
+                            } else {
+                                *line = shortcuts;
+                            }
+                        }
+                    }
                     let right_width = right_line.as_ref().map(|l| l.width() as u16).unwrap_or(0);
                     if status_line_active
                         && let Some(max_left) = max_left_width_for_right(hint_rect, right_width)
@@ -5086,6 +5105,109 @@ mod tests {
             );
             insta::assert_snapshot!("light_terminal_palette_composer", format!("{buffer:?}"));
         });
+    }
+
+    fn footer_row(composer: &ChatComposer, width: u16) -> String {
+        let area = Rect::new(0, 0, width, 9);
+        let mut buf = Buffer::empty(area);
+        composer.render(area, &mut buf);
+        (0..width)
+            .map(|x| buf[(x, area.bottom() - 1)].symbol())
+            .collect()
+    }
+
+    #[test]
+    fn vim_mode_stays_left_and_shortcuts_stay_right_with_or_without_status_line() {
+        for status_line_enabled in [false, true] {
+            let (mut composer, _rx) = new_test_composer();
+            composer.set_vim_enabled(true);
+            composer.set_status_line_enabled(status_line_enabled);
+            composer.set_status_line(Some(Line::from("model · directory")));
+            let row = footer_row(&composer, 100);
+            assert!(row.starts_with("  -- NORMAL --"), "{row:?}");
+            assert!(row.trim_end().ends_with("? for shortcuts"), "{row:?}");
+            assert_eq!(row.matches("-- NORMAL --").count(), 1);
+        }
+    }
+
+    #[test]
+    fn narrow_vim_footer_keeps_mode_instead_of_shortcuts() {
+        for status_line_enabled in [false, true] {
+            let (mut composer, _rx) = new_test_composer();
+            composer.set_vim_enabled(true);
+            composer.set_status_line_enabled(status_line_enabled);
+            composer.set_status_line(Some(Line::from("a very long status line")));
+            let row = footer_row(&composer, 18);
+            assert!(row.starts_with("  -- NORMAL --"), "{row:?}");
+            assert!(!row.contains("shortcuts"));
+        }
+    }
+
+    #[test]
+    fn vim_footer_uses_the_configured_shortcuts_key() {
+        let (mut composer, _rx) = new_test_composer();
+        let mut keymap = crate::keymap::RuntimeKeymap::defaults();
+        keymap.composer.toggle_shortcuts = vec![key_hint::plain(KeyCode::F(6))];
+        composer.set_keymap_bindings(&keymap);
+        composer.set_vim_enabled(true);
+        let row = footer_row(&composer, 100);
+        assert!(row.trim_end().ends_with("f6 for shortcuts"), "{row:?}");
+        assert!(!row.contains("? for shortcuts"));
+    }
+
+    #[test]
+    fn vim_footer_omits_an_unbound_shortcuts_hint() {
+        let (mut composer, _rx) = new_test_composer();
+        let mut keymap = crate::keymap::RuntimeKeymap::defaults();
+        keymap.composer.toggle_shortcuts.clear();
+        composer.set_keymap_bindings(&keymap);
+        composer.set_vim_enabled(true);
+        let row = footer_row(&composer, 100);
+        assert!(row.starts_with("  -- NORMAL --"), "{row:?}");
+        assert!(row.trim_end().ends_with("100% context left"), "{row:?}");
+        assert!(!row.contains("shortcuts"));
+    }
+
+    #[test]
+    fn running_task_keeps_vim_mode_and_queue_hint_visible() {
+        let (mut composer, _rx) = new_test_composer();
+        composer.set_vim_enabled(true);
+        composer.set_text_content("draft".to_string(), Vec::new(), Vec::new());
+        composer.set_task_running(true);
+        let row = footer_row(&composer, 100);
+        assert!(row.starts_with("  -- NORMAL --"), "{row:?}");
+        assert!(row.contains("to queue"), "{row:?}");
+        assert!(!row.contains("for shortcuts"));
+        assert_eq!(composer.current_text(), "draft");
+    }
+
+    #[test]
+    fn non_vim_footer_keeps_shortcuts_on_the_left() {
+        let (composer, _rx) = new_test_composer();
+        let row = footer_row(&composer, 100);
+        assert!(row.starts_with("  ? for shortcuts"), "{row:?}");
+        assert!(!row.contains("-- NORMAL --"));
+    }
+
+    #[test]
+    fn vim_footer_tracks_all_editing_modes_without_changing_the_draft() {
+        let (mut composer, _rx) = new_test_composer();
+        composer.set_vim_enabled(true);
+        composer.set_text_content("draft".to_string(), Vec::new(), Vec::new());
+        for (key, label) in [
+            (KeyCode::Char('i'), "-- INSERT --"),
+            (KeyCode::Esc, "-- NORMAL --"),
+            (KeyCode::Char('v'), "-- VISUAL --"),
+            (KeyCode::Esc, "-- NORMAL --"),
+            (KeyCode::Char('V'), "-- VISUAL LINE --"),
+            (KeyCode::Esc, "-- NORMAL --"),
+            (KeyCode::Char('R'), "-- REPLACE --"),
+        ] {
+            composer.handle_key_event(KeyEvent::new(key, KeyModifiers::NONE));
+            let row = footer_row(&composer, 100);
+            assert!(row.starts_with(&format!("  {label}")), "{row:?}");
+            assert_eq!(composer.current_text(), "draft");
+        }
     }
 
     #[test]
@@ -5981,7 +6103,7 @@ mod tests {
         assert!(composer.is_empty());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
 
         let (result, needs_redraw) =
@@ -5992,7 +6114,7 @@ mod tests {
         assert!(composer.is_empty());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Normal".magenta())
+            Some("-- NORMAL --".magenta())
         );
         assert_eq!(composer.footer.mode, FooterMode::ComposerEmpty);
         assert!(!composer.footer.esc_backtrack_hint);
@@ -6000,7 +6122,7 @@ mod tests {
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('R'), KeyModifiers::NONE));
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Replace".cyan())
+            Some("-- REPLACE --".cyan())
         );
         snapshot_composer_state(
             "vim_replace_mode",
@@ -6019,7 +6141,7 @@ mod tests {
         composer.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Normal".magenta())
+            Some("-- NORMAL --".magenta())
         );
     }
 
@@ -6051,7 +6173,7 @@ mod tests {
         assert!(matches!(composer.popups.active, ActivePopup::Command(_)));
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
     }
 
@@ -6085,7 +6207,7 @@ mod tests {
         assert!(composer.is_empty());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
         assert!(matches!(result, InputResult::Command(SlashCommand::Diff)));
     }
@@ -6117,7 +6239,7 @@ mod tests {
         assert!(needs_redraw);
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
         match result {
             InputResult::CommandWithArgs(cmd, args, text_elements) => {
@@ -6163,7 +6285,7 @@ mod tests {
         assert_eq!(composer.draft.textarea.text(), "");
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
     }
 
@@ -6364,7 +6486,7 @@ mod tests {
         assert!(composer.draft.textarea.is_vim_enabled());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Normal".magenta())
+            Some("-- NORMAL --".magenta())
         );
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
@@ -6375,7 +6497,7 @@ mod tests {
         assert!(composer.draft.textarea.is_vim_enabled());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
         assert!(composer.is_empty());
         match result {
@@ -6409,7 +6531,7 @@ mod tests {
 
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
         assert!(composer.is_empty());
         match result {
@@ -6445,7 +6567,7 @@ mod tests {
         assert_eq!(composer.draft.textarea.text(), "/not-a-command");
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
     }
 
@@ -6474,14 +6596,14 @@ mod tests {
             .set_cursor(composer.draft.textarea.text().len());
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Insert".green())
+            Some("-- INSERT --".green())
         );
         assert_eq!(composer.draft.textarea.cursor(), "hey".len());
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Normal".magenta())
+            Some("-- NORMAL --".magenta())
         );
         assert_eq!(composer.draft.textarea.cursor(), "he".len());
     }
@@ -11060,7 +11182,7 @@ mod tests {
         assert_eq!(composer.draft.textarea.text(), "hello");
         assert_eq!(
             composer.vim_mode_indicator_span(),
-            Some("Vim: Normal".magenta())
+            Some("-- NORMAL --".magenta())
         );
         assert!(!composer.draft.textarea.is_vim_operator_pending());
     }

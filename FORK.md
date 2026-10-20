@@ -5,8 +5,9 @@ A personal fork of [OpenAI Codex](https://github.com/openai/codex), maintained b
 
 ## At a glance
 
-- **Vim editing:** Chinese-aware word boundaries, counted commands, Visual
-  editing, and a limited set of registers, not a complete Vim implementation.
+- **Vim editing:** A left-aligned mode indicator, Chinese-aware word boundaries,
+  counted commands, Visual editing, and a limited set of registers, not a complete
+  Vim implementation.
 - **History navigation:** Ctrl+U/D, Ctrl+B/F, and `gg`/`G` browse the transcript
   from Vim Normal mode without changing the draft.
 - **Return to the latest output:** Ctrl+Option+E (Ctrl+Alt+E) works regardless
@@ -80,6 +81,14 @@ vim_mode_default = true
 
 This setting defaults to `false`. The fork extends Vim editing; it does not
 enable Vim mode automatically.
+
+During ordinary draft editing, the main composer's lower-left corner identifies
+the active Vim mode as
+`-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- VISUAL LINE --`, or
+`-- REPLACE --`. The existing shortcuts hint moves to the lower-right corner
+when it is otherwise shown and fits. Narrow layouts prioritize the mode label;
+the configured status line uses the remaining space. Shared modal editors use
+the same labels without changing their existing layout.
 
 Vim word motions in the composer now use punctuation and whitespace boundaries
 for Chinese text, without introducing dictionary-based word segmentation.

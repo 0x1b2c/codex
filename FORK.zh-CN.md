@@ -5,7 +5,7 @@
 
 ## 功能速览
 
-- **Vim 编辑：** 适用于中文的 word 边界、带 counts 的命令、Visual 编辑和有限的 register 支持，并非完整 Vim 实现。
+- **Vim 编辑：** 左侧模式指示器、适用于中文的 word 边界、带 counts 的命令、Visual 编辑和有限的 register 支持，并非完整 Vim 实现。
 - **历史导航：** 在 Vim Normal 模式下，用 Ctrl+U/D、Ctrl+B/F 和 `gg`/`G` 浏览对话历史，不改变草稿。
 - **返回最新输出：** Ctrl+Option+E（Ctrl+Alt+E）不受草稿编辑模式限制，不再使用 Esc 作为历史导航快捷键。
 - **减少打断：** 移除主动用量阈值警告，保留 `/status` 和实际额度错误。
@@ -64,6 +64,11 @@ vim_mode_default = true
 ```
 
 该设置默认为 `false`。本 fork 扩展 Vim 编辑，不会自动启用 Vim 模式。
+
+正常编辑草稿时，主输入框左下角显示当前 Vim 模式：`-- NORMAL --`、`-- INSERT --`、
+`-- VISUAL --`、`-- VISUAL LINE --` 或 `-- REPLACE --`。原有快捷键帮助提示在满足
+显示条件且空间足够时移到右下角。窄窗口优先保留模式标签，配置的状态栏使用剩余空间。
+共用编辑器的弹窗也采用相同标签，但保留原有布局。
 
 草稿框中的 Vim word motion 现在使用标点和空白边界处理中文，不引入基于词典的分词。
 `w` / `b` / `e` 与对应的 `W` / `B` / `E` 区分 word 与按空白划分的 WORD 边界。

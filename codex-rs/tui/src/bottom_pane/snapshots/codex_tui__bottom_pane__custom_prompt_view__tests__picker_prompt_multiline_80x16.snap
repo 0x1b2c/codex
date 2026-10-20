@@ -17,4 +17,4 @@ expression: "rows.join(\"\\n\")"
   Check the parser and preserve 日 本 語 .
 
 
-  enter submit · esc normal mode                                 Vim: Insert
+  enter submit · esc normal mode                                -- INSERT --

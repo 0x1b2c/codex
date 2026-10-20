@@ -507,11 +507,11 @@ impl TextArea {
             return None;
         }
         Some(match self.vim_mode {
-            VimMode::Normal => "Vim: Normal".magenta(),
-            VimMode::Visual => "Vim: Visual".yellow(),
-            VimMode::VisualLine => "Vim: Visual Line".yellow(),
-            VimMode::Insert => "Vim: Insert".green(),
-            VimMode::Replace => "Vim: Replace".cyan(),
+            VimMode::Normal => "-- NORMAL --".magenta(),
+            VimMode::Visual => "-- VISUAL --".yellow(),
+            VimMode::VisualLine => "-- VISUAL LINE --".yellow(),
+            VimMode::Insert => "-- INSERT --".green(),
+            VimMode::Replace => "-- REPLACE --".cyan(),
         })
     }
 

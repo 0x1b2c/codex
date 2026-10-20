@@ -330,6 +330,18 @@ struct LeftSideState {
     show_cycle_hint: bool,
 }
 
+/// Reuse the configured passive shortcuts hint on the Vim composer's right side.
+pub(crate) fn shortcuts_hint_line(key_hints: FooterKeyHints) -> Line<'static> {
+    left_side_line(
+        None,
+        LeftSideState {
+            hint: SummaryHintKind::Shortcuts,
+            show_cycle_hint: false,
+        },
+        key_hints,
+    )
+}
+
 fn left_side_line(
     collaboration_mode_indicator: Option<CollaborationModeIndicator>,
     state: LeftSideState,

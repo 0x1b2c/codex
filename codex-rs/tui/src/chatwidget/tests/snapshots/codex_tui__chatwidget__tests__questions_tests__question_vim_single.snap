@@ -9,7 +9,7 @@ NORMAL
 
   alpha beta
   alpha gamma
-                                                                   Vim: Normal
+                                                                  -- NORMAL --
   enter submit   ⌃] skip   ⇧→ main prompt
 
 SEARCH
@@ -20,5 +20,5 @@ SEARCH
   alpha beta
   alpha gamma
   /gamma
-                                                                   Vim: Normal
+                                                                  -- NORMAL --
   enter submit   ⌃] skip   ⇧→ main prompt
