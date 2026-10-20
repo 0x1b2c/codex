@@ -3,6 +3,7 @@
 use super::*;
 use crate::history_cell::PlainHistoryCell;
 use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 use pretty_assertions::assert_eq;
 

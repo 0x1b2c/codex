@@ -1046,6 +1046,7 @@ async fn latest_001_configured_shortcuts_preserve_drafts_in_each_editing_mode() 
             app.transcript_view.scroll(&app.transcript_cells, -10);
             app.render_owned_transcript(&mut tui, size)?;
             let cursor = tui.terminal.last_known_cursor_pos;
+            let draft = app.chat_widget.capture_thread_input_state();
             let before = screen(&tui);
             assert!(before.contains(&format!("{hint} latest")), "{before}");
             for key in &keys {
@@ -1060,13 +1061,14 @@ async fn latest_001_configured_shortcuts_preserve_drafts_in_each_editing_mode() 
             );
             assert_eq!(tui.terminal.last_known_cursor_pos, cursor);
             let after = screen(&tui);
-            for label in ["-- NORMAL --", "-- INSERT --", "-- VISUAL --"] {
-                assert_eq!(
-                    before.contains(label),
-                    after.contains(label),
-                    "{configured} in {mode}"
-                );
-            }
+            assert_eq!(app.chat_widget.capture_thread_input_state(), draft);
+            let label = match mode {
+                "normal" => "-- NORMAL --",
+                "insert" => "-- INSERT --",
+                "visual" => "-- VISUAL --",
+                _ => "",
+            };
+            assert!(after.contains(label), "{configured} in {mode}: {after}");
         }
         app.chat_widget.toggle_vim_mode_and_notify();
     }
