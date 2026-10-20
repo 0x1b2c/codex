@@ -1,7 +1,12 @@
 > **Personal fork by [0x1b2c](https://github.com/0x1b2c).** This fork carries
-> Chinese-aware Vim editing improvements, a prompt-cache expiry estimate, and a
-> local build/install command. See [FORK.md](FORK.md) for the patch stack and build
-> instructions. The rest of this README is unchanged from upstream Codex.
+> Chinese-aware Vim editing, Vim history navigation, a dedicated return-to-bottom
+> shortcut, a prompt-cache time estimate, fewer usage warnings, and an option to
+> keep terminal sessions independent of the shared daemon. Build both binaries
+> with `just build`; install them with `just install-fork`.
+>
+> We follow upstream's latest stable releases, not `main` or prereleases; a large
+> commit gap from `main` is expected. See [FORK.md](FORK.md) for features and setup,
+> or [简体中文说明](FORK.zh-CN.md). The rest of this README is unchanged from upstream.
 
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
 <p align="center">

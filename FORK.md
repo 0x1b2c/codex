@@ -3,6 +3,34 @@
 A personal fork of [OpenAI Codex](https://github.com/openai/codex), maintained by
 [0x1b2c](https://github.com/0x1b2c).
 
+## At a glance
+
+- **Vim editing:** Chinese-aware word boundaries, counted commands, Visual
+  editing, and a limited set of registers, not a complete Vim implementation.
+- **History navigation:** Ctrl+U/D, Ctrl+B/F, and `gg`/`G` browse the transcript
+  from Vim Normal mode without changing the draft.
+- **Return to the latest output:** Ctrl+Option+E (Ctrl+Alt+E) works regardless
+  of the composer's editing mode, without using Esc as a history shortcut.
+- **Less interruption:** remove proactive usage-threshold warnings; retain
+  `/status` and actual limit errors.
+- **Optional indicators and isolation:** a local prompt-cache time estimate
+  and `tui.no_daemon` for terminal sessions that do not join the shared daemon.
+- **Build and install:** `just build` builds the complete CLI and code-mode host;
+  `just install-fork` installs both under their usual names.
+
+The fork also changes wheel-event rendering. Its independent performance benefit
+has not yet been established; increasing wheel travel uses an existing upstream
+configuration option, not a new fork feature.
+
+**Release policy:** follow upstream's latest stable releases, not `main` or
+prereleases. A large commit gap from upstream `main` is expected and does not,
+by itself, indicate that the fork is unmaintained. The recorded base below shows
+which release this checkout currently follows.
+
+Start with [feature activation](#enabling-the-features) or
+[building and running](#building-and-running). A [简体中文版](FORK.zh-CN.md)
+is also available; patch-stack details are further below.
+
 ## Overview
 
 This fork carries focused fixes and workflow improvements for daily use. It is
@@ -21,15 +49,15 @@ the existing `[tui]` section rather than creating a second one, and preserve
 unrelated settings. Restart the CLI after editing the file. The `/vim` and
 `/statusline` commands can change their respective settings in the running UI.
 
-| Feature | Activation and default |
-| --- | --- |
-| Prompt-cache estimate | Opt in: add `"cache-expiry"` to `tui.status_line`, or select it in `/statusline`. It is not in the default status line. |
-| Vim editing and Normal-mode history motions | Enable Vim mode with `/vim`, or set `tui.vim_mode_default = true` for future launches. Vim mode is off by default. |
-| Return to the latest output | Ctrl+Option+E (Ctrl+Alt+E) works in the main fullscreen view without configuration or Vim mode. |
-| Independent terminal sessions | Opt in with `tui.no_daemon = true`. The default is `false`. |
-| Wheel travel distance | Optional upstream setting: `tui.mouse_scroll_speed = 3.0` increases travel; the default is `1.0`. |
+| Feature                                           | Activation and default                                                                                                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt-cache estimate                             | Opt in: add `"cache-expiry"` to `tui.status_line`, or select it in `/statusline`. It is not in the default status line.                  |
+| Vim editing and Normal-mode history motions       | Enable Vim mode with `/vim`, or set `tui.vim_mode_default = true` for future launches. Vim mode is off by default.                       |
+| Return to the latest output                       | Ctrl+Option+E (Ctrl+Alt+E) works in the main fullscreen view without configuration or Vim mode.                                          |
+| Independent terminal sessions                     | Opt in with `tui.no_daemon = true`. The default is `false`.                                                                              |
+| Wheel travel distance                             | Optional upstream setting: `tui.mouse_scroll_speed = 3.0` increases travel; the default is `1.0`.                                        |
 | Usage-warning removal and wheel-rendering changes | Automatic in this fork; no enable switch. Wheel-rendering changes apply to the main fullscreen view and do not increase scroll distance. |
-| Local build settings and lock-file protection | Used automatically by `just build`; no CLI configuration setting is needed. |
+| Local build settings and lock-file protection     | Used automatically by `just build`; no CLI configuration setting is needed.                                                              |
 
 The main fullscreen transcript is enabled by default. Inline or raw-output modes
 do not provide the same owned-history navigation behavior.
@@ -62,7 +90,10 @@ the current logical line, and word text objects handle whitespace consistently.
 The same topic extends the existing Vim editor with counted motions and edits,
 counted dot repeat, repeated character searches, paste-before, characterwise and
 linewise Visual editing, line joining, bracket matching, paragraph motions and
-text objects, and numbered, named, and black-hole registers. It also adds
+text objects, and yank register `"0`, named registers `"a`–`"z`, and black-hole
+register `"_`, alongside the existing unnamed buffer. Delete-history registers
+`"1`–`"9`, uppercase append registers, and system clipboard registers are not
+implemented. It also adds
 line-start navigation and `X` / `S`, including correct `cc` handling on empty
 lines.
 
@@ -85,7 +116,7 @@ Ordinary history browsing no longer uses Esc to return to the bottom: Esc retain
 its existing editing, cancellation, prompt-backtracking, and task-interruption
 roles. Popups and dialogs retain ownership of their input.
 
-*Topic: `vim-editing`. Range: `wheel-scrolling..vim-editing`.*
+_Topic: `vim-editing`. Range: `wheel-scrolling..vim-editing`._
 
 ### Prompt-cache timing should be visible
 
@@ -108,7 +139,7 @@ not a countdown or confirmation of server-side cache retention, and does not
 guarantee that the next request will hit the cache. The item is omitted until
 the running session has a submission timestamp to estimate from.
 
-*Topic: `cache-expiry`. Range: `local-build..cache-expiry`.*
+_Topic: `cache-expiry`. Range: `local-build..cache-expiry`._
 
 ### Usage warnings should not interrupt the conversation
 
@@ -117,7 +148,7 @@ warning count. Check `/status` or the status line for usage; the composer usage
 notice, actual limit errors, and model-switch and credit-recovery flows remain
 available.
 
-*Topic: `usage-warnings`. Range: `cache-expiry..usage-warnings`.*
+_Topic: `usage-warnings`. Range: `cache-expiry..usage-warnings`._
 
 ### History scrolling should not redraw an old frame for every wheel event
 
@@ -130,7 +161,7 @@ drags retain their synchronous layout refresh. Wheel events over selectable
 footer or turn-tip text also refresh those regions synchronously before
 transcript scrolling.
 
-*Topic: `wheel-scrolling`. Range: `usage-warnings..wheel-scrolling`.*
+_Topic: `wheel-scrolling`. Range: `usage-warnings..wheel-scrolling`._
 
 ### Terminal sessions can stay independent of the app's daemon
 
@@ -154,7 +185,7 @@ This preference does not disable the shared daemon for the ChatGPT app, change
 It does not add daemon version compatibility checks or resolve competing remote
 control connections.
 
-*Topic: `tui-no-daemon`. Range: `vim-editing..tui-no-daemon`.*
+_Topic: `tui-no-daemon`. Range: `vim-editing..tui-no-daemon`._
 
 ### Build and developer experience
 
@@ -164,7 +195,7 @@ host together, without requiring an official Codex installation or a separate
 build script. Installation is a separate step; see
 [Building and running](#building-and-running).
 
-*Topic: `local-build`. Range: `fork-base..local-build`.*
+_Topic: `local-build`. Range: `fork-base..local-build`._
 
 ## Patch-stack conventions
 
@@ -202,9 +233,8 @@ file without changing external dependencies. The build recipe's `--locked`
 guard belongs to `local-build`.
 
 All topic refs above mark actual boundaries on the same linear history.
-`master` adds integration-level documentation and the simplified two-binary
-`local-build` follow-up after `tui-no-daemon`. Topic refs retain their current
-boundaries until the next deliberate stack reorganization.
+The two-binary build and installer are consolidated in `local-build`; `master`
+adds integration-level documentation after `tui-no-daemon`.
 `backup/patch-stack-before-reorder-20261020` preserves the integration tip before
 the first stack reorganization; keep that backup fixed during future rebases.
 That initial reorganization retained the `rust-v0.162.1` base and did not change
@@ -297,7 +327,7 @@ needed. V8's own build script handles its precompiled library download.
 
 Additional arguments are forwarded to Cargo. The default uses the native target;
 for example, `just build --target aarch64-apple-darwin` selects that explicit
-target and can reuse the target layout used by the former build script.
+target and places the binaries under its target-specific output directory.
 
 The project's release profile keeps `opt-level = 3`, disables LTO
 (`lto = "off"`), uses `codegen-units = 16`, disables debug information
