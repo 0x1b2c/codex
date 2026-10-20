@@ -54,9 +54,7 @@ Ordinary history browsing no longer uses Esc to return to the bottom: Esc retain
 its existing editing, cancellation, prompt-backtracking, and task-interruption
 roles. Popups and dialogs retain ownership of their input.
 
-*Topic: `vim-editing`. Initial implementation: `d8c2783d49..9e20c3ad07`.
-Main-view paging and `gg` / `G` follow-ups remain at the integration tip until
-the next upstream sync.*
+*Topic: `vim-editing`. Range: `wheel-scrolling..vim-editing`.*
 
 ### Prompt-cache timing should be visible
 
@@ -65,7 +63,7 @@ submission. This is a local estimate, not confirmation of server-side cache
 retention or a guarantee that the next request will hit the cache. The segment
 is omitted when its value is unknown.
 
-*Topic: `cache-expiry`. Current range: `283cdd1476..d8c2783d49`.*
+*Topic: `cache-expiry`. Range: `local-build..cache-expiry`.*
 
 ### Usage warnings should not interrupt the conversation
 
@@ -74,7 +72,7 @@ warning count. Check `/status` or the status line for usage; the composer usage
 notice, actual limit errors, and model-switch and credit-recovery flows remain
 available.
 
-*Topic branch not yet split from the integration history.*
+*Topic: `usage-warnings`. Range: `cache-expiry..usage-warnings`.*
 
 ### History scrolling should not redraw an old frame for every wheel event
 
@@ -85,7 +83,7 @@ position. Initial layout, terminal resizes, and composer-height changes still
 refresh geometry before handling the wheel; clicks and selection drags retain
 their synchronous layout refresh.
 
-*Topic branch not yet split from the integration history.*
+*Topic: `wheel-scrolling`. Range: `usage-warnings..wheel-scrolling`.*
 
 ### Terminal sessions can stay independent of the app's daemon
 
@@ -109,7 +107,7 @@ This preference does not disable the shared daemon for the ChatGPT app, change
 It does not add daemon version compatibility checks or resolve competing remote
 control connections.
 
-*Topic branch not yet split from the integration history.*
+*Topic: `tui-no-daemon`. Range: `vim-editing..tui-no-daemon`.*
 
 ### Build and developer experience
 
@@ -130,14 +128,18 @@ points to the final commit of that topic, and `master` is the integration tip.
 These are boundaries on one history, not independent branches repeatedly merged
 into the integration branch.
 
-The intended layout for the original three implementation topics is:
+The current stack is:
 
 ```text
-upstream base
+rust-v0.162.1
+  -> lock-alignment
   -> fork-base
   -> local-build
   -> cache-expiry
+  -> usage-warnings
+  -> wheel-scrolling
   -> vim-editing
+  -> tui-no-daemon
   -> master
 ```
 
@@ -146,15 +148,20 @@ rules, so later topics can update their documentation in the same commit as the
 behavior they introduce. Local session notes and machine-specific settings do
 not belong in that layer.
 
-The existing implementation stack is based on upstream tag `rust-v0.162.1`
-(`092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`). It is currently integrated on
-`cache-expiry`, including the Vim changes. The topic names above describe the
-target layout; those separate topic refs and the bottom `fork-base` layer have
-not yet been established. They will be organized during the next upstream sync,
-without rewriting history just to introduce these conventions. The ranges in the
-feature list identify the actual implementation boundaries until then.
-Later topics, including usage-warning removal and wheel-rendering changes, also
-remain at the integration tip until their branch boundaries are established.
+The stack is based on upstream tag `rust-v0.162.1`
+(`092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`). The `lock-alignment` layer is
+the first patch above upstream: it aligns workspace package versions in the lock
+file without changing external dependencies. The build recipe's `--locked`
+guard belongs to `local-build`.
+
+All topic refs above mark actual boundaries on the same linear history.
+`master` adds integration-level documentation and the simplified two-binary
+`local-build` follow-up after `tui-no-daemon`. Topic refs retain their current
+boundaries until the next deliberate stack reorganization.
+`backup/patch-stack-before-reorder-20261020` preserves the integration tip before
+the first stack reorganization; keep that backup fixed during future rebases.
+The reorganization did not change the upstream base or any tracked content
+outside this document.
 
 ### Adding and maintaining patches
 
@@ -181,8 +188,9 @@ remain at the integration tip until their branch boundaries are established.
 Record the old upstream base, integration tip, and topic refs before a sync.
 After replaying the stack, use `git range-diff` between the old and new patch
 ranges to account for changed, added, and dropped commits, and verify that topic
-refs still mark the intended boundaries. Branch refs need to move along with the
-stack; `rebase --update-refs` supports this for eligible branches.
+refs still mark the intended boundaries. Move topic refs along with the stack,
+but keep backup refs fixed. When backup refs point into the rewritten range,
+do not use automatic ref updates; move only the intended topic refs explicitly.
 
 Keep workspace package versions in `codex-rs/Cargo.lock` aligned with
 `workspace.package.version` in `codex-rs/Cargo.toml`. The upstream `rust-v0.162.1`
