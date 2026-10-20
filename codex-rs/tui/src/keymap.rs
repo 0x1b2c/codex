@@ -1251,7 +1251,7 @@ impl RuntimeKeymap {
                     !configured_vim_normal_bindings_to_preserve
                         .iter()
                         .any(|configured| {
-                            configured.normalized_parts() == binding.normalized_parts()
+                            configured.is_press(KeyEvent::new(binding.parts().0, binding.parts().1))
                         })
                         && !chords.bindings.iter().any(|chord| {
                             chord.action.context == KeymapContext::VimNormal
@@ -1554,7 +1554,7 @@ impl RuntimeKeymap {
                     !configured_vim_operator_bindings_to_preserve
                         .iter()
                         .any(|configured| {
-                            configured.normalized_parts() == binding.normalized_parts()
+                            configured.is_press(KeyEvent::new(binding.parts().0, binding.parts().1))
                         })
                         && !chords.bindings.iter().any(|chord| {
                             chord.action.context == KeymapContext::VimOperator
