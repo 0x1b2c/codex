@@ -121,12 +121,14 @@ available.
 
 ### History scrolling should not redraw an old frame for every wheel event
 
-In the main fullscreen view, consecutive wheel events update the scroll position
-without synchronously painting an intermediate frame when the displayed viewport
-geometry is unchanged. The existing frame scheduler draws the accumulated
-position. Initial layout, terminal resizes, and composer-height changes still
-refresh geometry before handling the wheel; clicks and selection drags retain
-their synchronous layout refresh.
+Over the transcript in the main fullscreen view, consecutive wheel events update
+the scroll position without synchronously painting an intermediate frame when
+the displayed viewport geometry is unchanged. The existing frame scheduler draws
+the accumulated position. Initial layout, terminal resizes, and composer-height
+changes still refresh geometry before handling the wheel; clicks and selection
+drags retain their synchronous layout refresh. Wheel events over selectable
+footer or turn-tip text also refresh those regions synchronously before
+transcript scrolling.
 
 *Topic: `wheel-scrolling`. Range: `usage-warnings..wheel-scrolling`.*
 
