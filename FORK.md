@@ -82,6 +82,30 @@ their synchronous layout refresh.
 
 *Topic branch not yet split from the integration history.*
 
+### Terminal sessions can stay independent of the app's daemon
+
+The terminal TUI can use its own embedded app server even when a shared daemon
+already exists. Set this in the existing `[tui]` section of `~/.codex/config.toml`:
+
+```toml
+[tui]
+no_daemon = true
+```
+
+This is equivalent to `--no-daemon` for local TUI launches, including resume and
+fork: it skips both daemon discovery and automatic startup. The default is
+`false`, preserving upstream behavior. Explicit `--no-daemon` still takes effect
+when the setting is false. Explicit `--remote` connections ignore this local
+preference; the existing conflict between `--remote` and the `--no-daemon` flag
+remains an error. Restart the CLI after changing the setting.
+
+This preference does not disable the shared daemon for the ChatGPT app, change
+`features.daemon_auto_start`, stop an existing daemon, or change remote control.
+It does not add daemon version compatibility checks or resolve competing remote
+control connections.
+
+*Topic branch not yet split from the integration history.*
+
 ### Build and developer experience
 
 **`local-build`** adds an optimized release profile, `just build`, and

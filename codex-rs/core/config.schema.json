@@ -4945,6 +4945,11 @@
           "format": "double",
           "type": "number"
         },
+        "no_daemon": {
+          "default": false,
+          "description": "Use an embedded app server for local TUI sessions instead of discovering or starting a shared daemon. Defaults to `false`. Explicit `--remote` connections take precedence.",
+          "type": "boolean"
+        },
         "notification_condition": {
           "allOf": [
             {

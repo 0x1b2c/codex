@@ -101,3 +101,70 @@ async fn first_frame_respects_screen_and_status_line_overrides() -> anyhow::Resu
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn tui_no_daemon_preference_selects_embedded_before_discovery() -> anyhow::Result<()> {
+    for (setting, cli_flag, explicit_remote, config_override, expected) in [
+        ("", false, false, None, false),
+        ("no_daemon = false", false, false, None, false),
+        ("no_daemon = true", false, false, None, true),
+        ("no_daemon = false", true, false, None, true),
+        ("no_daemon = true", false, true, None, false),
+        ("no_daemon = true", false, false, Some(false), false),
+        ("no_daemon = false", false, false, Some(true), true),
+    ] {
+        let home = tempfile::tempdir()?;
+        std::fs::write(
+            home.path().join("config.toml"),
+            format!("[features]\ndaemon_auto_start = true\n[tui]\n{setting}\n"),
+        )?;
+        let mut cli = Cli::try_parse_from(["codex"])?;
+        cli.no_daemon = cli_flag;
+        let presentation = load(
+            &cli,
+            home.path(),
+            LoaderOverrides {
+                ignore_project_config: true,
+                ..LoaderOverrides::without_managed_config_for_tests()
+            },
+            config_override
+                .map(|value| vec![("tui.no_daemon".to_string(), toml::Value::Boolean(value))])
+                .unwrap_or_default(),
+            None,
+        )
+        .await?;
+        crate::daemon_startup::apply_no_daemon_preference(
+            &mut cli,
+            presentation.local_settings.tui.no_daemon,
+            explicit_remote,
+        );
+        assert_eq!(cli.no_daemon, expected);
+        assert_eq!(
+            presentation
+                .bootstrap_config
+                .config_toml
+                .features
+                .as_ref()
+                .and_then(|features| features.entries().get("daemon_auto_start").copied()),
+            Some(true),
+        );
+        let excluded =
+            crate::daemon_startup::exclusion(&cli, &[], &LoaderOverrides::default(), false, None)
+                .is_some();
+        assert_eq!(excluded, expected);
+        let socket = AbsolutePathBuf::from_absolute_path(home.path().join("daemon.sock"))?;
+        let endpoint = explicit_remote.then(|| crate::RemoteAppServerEndpoint::UnixSocket {
+            socket_path: socket.clone(),
+        });
+        let target =
+            crate::app_server_target_for_launch(endpoint, Some(socket), !excluded, false, None)?;
+        if explicit_remote {
+            assert!(matches!(target, crate::AppServerTarget::Remote { .. }));
+        } else if expected {
+            assert!(matches!(target, crate::AppServerTarget::Embedded));
+        } else {
+            assert!(matches!(target, crate::AppServerTarget::LocalDaemon { .. }));
+        }
+    }
+    Ok(())
+}

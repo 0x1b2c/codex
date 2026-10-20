@@ -56,6 +56,8 @@ impl LocalSettings {
                 config.tui_alternate_screen != codex_config::types::AltScreenMode::Never,
             ),
             tui: Tui {
+                // Launch-only preference is consumed from bootstrap before this adapter is used.
+                no_daemon: false,
                 notification_settings: config.tui_notifications.clone(),
                 animations: config.animations,
                 screen_reader_detection_done: None,

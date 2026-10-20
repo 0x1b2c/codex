@@ -186,6 +186,66 @@ pub(super) async fn run_main_inner(
         .await;
     }
 
+    // Local-daemon discovery does not change client config precedence. Resolve explicit
+    // remote selection and the environment without opening a server connection.
+    let presentation_target = app_server_target_for_launch(
+        explicit_remote_endpoint.clone(),
+        /*default_daemon_socket*/ None,
+        /*can_reuse_implicit_local_daemon*/ false,
+        workload_identity_selected,
+        std::env::var_os(codex_exec_server::CODEX_EXEC_SERVER_URL_ENV_VAR).as_deref(),
+    )?;
+    let prepared_environment_manager =
+        if should_load_configured_environments(&launch_loader_overrides, &presentation_target) {
+            EnvironmentManager::prepare_from_codex_home(&codex_home).await
+        } else {
+            EnvironmentManager::prepare_from_env().await
+        }
+        .map_err(std::io::Error::other)?;
+    if cli.shared.worktree
+        && (presentation_target.uses_remote_workspace()
+            || prepared_environment_manager.default_environment_is_remote())
+    {
+        return Err(std::io::Error::other(
+            "`--worktree` is only supported for local sessions",
+        ));
+    }
+    let cwd = cli.cwd.clone();
+    let config_cwd = config_cwd_for_app_server_target(
+        cwd.as_deref(),
+        &presentation_target,
+        prepared_environment_manager.default_environment_is_remote(),
+    )?;
+    // Reuse the profile path resolved above; do not reconstruct profile precedence here.
+    let mut loader_overrides = launch_loader_overrides.clone();
+    loader_overrides.ignore_login_requirements = presentation_target.uses_remote_workspace();
+    let presentation = startup_presentation::load(
+        &cli,
+        &codex_home,
+        loader_overrides.clone(),
+        cli_kv_overrides.clone(),
+        config_cwd,
+    )
+    .await
+    .map_err(|err| {
+        if let Some(config_error) = err
+            .get_ref()
+            .and_then(|inner| inner.downcast_ref::<ConfigLoadError>())
+        {
+            std::io::Error::other(format!(
+                "loading config.toml:\n{}",
+                format_config_error_with_source(config_error.config_error())
+            ))
+        } else {
+            err
+        }
+    })?;
+    // Resolve the preference before any implicit daemon discovery, including resume and fork.
+    daemon_startup::apply_no_daemon_preference(
+        &mut cli,
+        presentation.local_settings.tui.no_daemon,
+        explicit_remote_endpoint.is_some(),
+    );
     let mut daemon_exclusion = daemon_startup::exclusion(
         &cli,
         &cli_kv_overrides,
@@ -224,60 +284,6 @@ pub(super) async fn run_main_inner(
     } else {
         startup_draft::StartupDraftSessionAction::New
     };
-    // Local-daemon discovery does not change client config precedence. Resolve explicit
-    // remote selection and the environment without opening a server connection.
-    let presentation_target = app_server_target_for_launch(
-        explicit_remote_endpoint.clone(),
-        /*default_daemon_socket*/ None,
-        reuse_implicit_local_daemon,
-        workload_identity_selected,
-        std::env::var_os(codex_exec_server::CODEX_EXEC_SERVER_URL_ENV_VAR).as_deref(),
-    )?;
-    let prepared_environment_manager =
-        if should_load_configured_environments(&launch_loader_overrides, &presentation_target) {
-            EnvironmentManager::prepare_from_codex_home(&codex_home).await
-        } else {
-            EnvironmentManager::prepare_from_env().await
-        }
-        .map_err(std::io::Error::other)?;
-    if cli.shared.worktree
-        && (presentation_target.uses_remote_workspace()
-            || prepared_environment_manager.default_environment_is_remote())
-    {
-        return Err(std::io::Error::other(
-            "`--worktree` is only supported for local sessions",
-        ));
-    }
-    let cwd = cli.cwd.clone();
-    let config_cwd = config_cwd_for_app_server_target(
-        cwd.as_deref(),
-        &presentation_target,
-        prepared_environment_manager.default_environment_is_remote(),
-    )?;
-    // Reuse the profile path resolved above; do not reconstruct profile precedence here.
-    let mut loader_overrides = launch_loader_overrides;
-    loader_overrides.ignore_login_requirements = presentation_target.uses_remote_workspace();
-    let presentation = startup_presentation::load(
-        &cli,
-        &codex_home,
-        loader_overrides.clone(),
-        cli_kv_overrides.clone(),
-        config_cwd,
-    )
-    .await
-    .map_err(|err| {
-        if let Some(config_error) = err
-            .get_ref()
-            .and_then(|inner| inner.downcast_ref::<ConfigLoadError>())
-        {
-            std::io::Error::other(format!(
-                "loading config.toml:\n{}",
-                format_config_error_with_source(config_error.config_error())
-            ))
-        } else {
-            err
-        }
-    })?;
     // Keep normal terminal signals available until local configuration is ready. Once raw
     // mode begins, StartupDraft immediately takes ownership of input.
     let (initialized_terminal, terminal_restore_guard) = tokio::task::spawn_blocking(|| {

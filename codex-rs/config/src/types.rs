@@ -826,6 +826,11 @@ pub const DEFAULT_TERMINAL_RESIZE_REFLOW_FALLBACK_MAX_ROWS: usize = 1_000;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct Tui {
+    /// Use an embedded app server for local TUI sessions instead of discovering or starting a shared daemon.
+    /// Defaults to `false`. Explicit `--remote` connections take precedence.
+    #[serde(default)]
+    pub no_daemon: bool,
+
     #[serde(default, flatten)]
     pub notification_settings: TuiNotificationSettings,
 
